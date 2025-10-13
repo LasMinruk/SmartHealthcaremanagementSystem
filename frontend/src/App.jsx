@@ -15,6 +15,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import Verify from './pages/Verify'
 import VideoCall from './pages/VideoCall'
 import Chatbot from './components/Chatbot'
+import PatientLabPharmacyPage from './pages/PatientLabPharmacyPage'
 
 const App = () => {
   return (
@@ -33,6 +34,7 @@ const App = () => {
         <Route path='/my-profile' element={<MyProfile />} />
         <Route path='/verify' element={<Verify />} />
         <Route path='/video/:appointmentId' element={<VideoCall />} />
+        <Route path='/labtest-pharmacy' element={<PatientLabPharmacyPage />} />
       </Routes>
       <Chatbot />
       <Footer />

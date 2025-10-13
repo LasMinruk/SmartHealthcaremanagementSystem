@@ -61,6 +61,12 @@ const Navbar = () => {
                 >
                   My Appointments
                 </p>
+                <p
+                  onClick={() => navigate("/labtest-pharmacy")}
+                  className="hover:text-black cursor-pointer"
+                >
+                  My Lab-Test & Pharmacy Orders
+                </p>
                 <p onClick={logout} className="hover:text-black cursor-pointer">
                   Logout
                 </p>

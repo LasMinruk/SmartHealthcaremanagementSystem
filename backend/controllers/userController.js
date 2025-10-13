@@ -20,11 +20,17 @@ const registerUser = async (req, res) => {
     }
 
     if (!validator.isEmail(email)) {
-      return res.json({ success: false, message: "Please enter a valid email" });
+      return res.json({
+        success: false,
+        message: "Please enter a valid email",
+      });
     }
 
     if (password.length < 8) {
-      return res.json({ success: false, message: "Please enter a strong password" });
+      return res.json({
+        success: false,
+        message: "Please enter a strong password",
+      });
     }
 
     const salt = await bcrypt.genSalt(10);
@@ -35,7 +41,8 @@ const registerUser = async (req, res) => {
     const user = await newUser.save();
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
-    res.json({ success: true, token });
+
+    res.json({ success: true, token, userId: user._id });
   } catch (error) {
     console.log(error);
     res.json({ success: false, message: error.message });
@@ -56,7 +63,7 @@ const loginUser = async (req, res) => {
 
     if (isMatch) {
       const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
-      res.json({ success: true, token });
+      res.json({ success: true, token, userId: user._id });
     } else {
       res.json({ success: false, message: "Invalid credentials" });
     }
@@ -170,13 +177,17 @@ const cancelAppointment = async (req, res) => {
       return res.json({ success: false, message: "Unauthorized action" });
     }
 
-    await appointmentModel.findByIdAndUpdate(appointmentId, { cancelled: true });
+    await appointmentModel.findByIdAndUpdate(appointmentId, {
+      cancelled: true,
+    });
 
     const { docId, slotDate, slotTime } = appointmentData;
     const doctorData = await doctorModel.findById(docId);
     let slots_booked = doctorData.slots_booked;
 
-    slots_booked[slotDate] = slots_booked[slotDate].filter((e) => e !== slotTime);
+    slots_booked[slotDate] = slots_booked[slotDate].filter(
+      (e) => e !== slotTime
+    );
     await doctorModel.findByIdAndUpdate(docId, { slots_booked });
 
     res.json({ success: true, message: "Appointment Cancelled" });
@@ -207,7 +218,10 @@ const paymentStripe = async (req, res) => {
     const appointmentData = await appointmentModel.findById(appointmentId);
 
     if (!appointmentData || appointmentData.cancelled) {
-      return res.json({ success: false, message: "Appointment Cancelled or not found" });
+      return res.json({
+        success: false,
+        message: "Appointment Cancelled or not found",
+      });
     }
 
     const currency = process.env.CURRENCY.toLowerCase();
@@ -242,7 +256,9 @@ const verifyStripe = async (req, res) => {
     const { appointmentId, success } = req.body;
 
     if (success === "true") {
-      await appointmentModel.findByIdAndUpdate(appointmentId, { payment: true });
+      await appointmentModel.findByIdAndUpdate(appointmentId, {
+        payment: true,
+      });
       return res.json({ success: true, message: "Payment Successful" });
     }
 
