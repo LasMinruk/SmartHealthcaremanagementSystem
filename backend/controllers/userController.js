@@ -36,6 +36,12 @@ const registerUser = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
+    // Check if user already exists
+    const existingUser = await userModel.findOne({ email });
+    if (existingUser) {
+      return res.json({ success: false, message: "User already exists with this email" });
+    }
+
     const userData = { name, email, password: hashedPassword };
     const newUser = new userModel(userData);
     const user = await newUser.save();
@@ -45,7 +51,11 @@ const registerUser = async (req, res) => {
     res.json({ success: true, token, userId: user._id });
   } catch (error) {
     console.log(error);
-    res.json({ success: false, message: error.message });
+    if (error.code === 11000) {
+      res.json({ success: false, message: "User already exists with this email" });
+    } else {
+      res.json({ success: false, message: error.message });
+    }
   }
 };
 

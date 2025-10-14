@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 
 const Login = () => {
   const [state, setState] = useState("Sign Up");
+  const [loading, setLoading] = useState(false);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -16,34 +17,53 @@ const Login = () => {
 
   const onSubmitHandler = async (event) => {
     event.preventDefault();
+    setLoading(true);
 
-    if (state === "Sign Up") {
-      const { data } = await axios.post(backendUrl + "/api/user/register", {
-        name,
-        email,
-        password,
-      });
+    try {
+      if (state === "Sign Up") {
+        const { data } = await axios.post(backendUrl + "/api/user/register", {
+          name,
+          email,
+          password,
+        });
 
-      if (data.success) {
-        localStorage.setItem("token", data.token);
-        localStorage.setItem("userId", data.userId); // ✅ userId now available
-        setToken(data.token);
+        if (data.success) {
+          localStorage.setItem("token", data.token);
+          localStorage.setItem("userId", data.userId);
+          setToken(data.token);
+          toast.success("Account created successfully!");
+        } else {
+          toast.error(data.message);
+        }
       } else {
-        toast.error(data.message);
-      }
-    } else {
-      const { data } = await axios.post(backendUrl + "/api/user/login", {
-        email,
-        password,
-      });
+        const { data } = await axios.post(backendUrl + "/api/user/login", {
+          email,
+          password,
+        });
 
-      if (data.success) {
-        localStorage.setItem("token", data.token);
-        localStorage.setItem("userId", data.userId); 
-        setToken(data.token);
-      } else {
-        toast.error(data.message);
+        if (data.success) {
+          localStorage.setItem("token", data.token);
+          localStorage.setItem("userId", data.userId);
+          setToken(data.token);
+          toast.success("Login successful!");
+        } else {
+          toast.error(data.message);
+        }
       }
+    } catch (error) {
+      console.error("Error:", error);
+      if (error.response) {
+        // Server responded with error status
+        toast.error(error.response.data?.message || "An error occurred");
+      } else if (error.request) {
+        // Network error
+        toast.error("Network error. Please check your connection and try again.");
+      } else {
+        // Other error
+        toast.error("An unexpected error occurred. Please try again.");
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -95,8 +115,11 @@ const Login = () => {
             required
           />
         </div>
-        <button className="bg-primary text-white w-full py-2 my-2 rounded-md text-base">
-          {state === "Sign Up" ? "Create account" : "Login"}
+        <button 
+          className="bg-primary text-white w-full py-2 my-2 rounded-md text-base disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled={loading}
+        >
+          {loading ? "Processing..." : (state === "Sign Up" ? "Create account" : "Login")}
         </button>
         {state === "Sign Up" ? (
           <p>
