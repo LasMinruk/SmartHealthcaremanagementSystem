@@ -4,8 +4,10 @@ import validator from "validator";
 import userModel from "../models/userModel.js";
 import doctorModel from "../models/doctorModel.js";
 import appointmentModel from "../models/appointmentModel.js";
+import insurenceModel from "../models/insurenceModel.js";
 import { v2 as cloudinary } from "cloudinary";
 import stripe from "stripe";
+
 
 // Stripe Payment Gateway Initialize
 const stripeInstance = new stripe(process.env.STRIPE_SECRET_KEY);
@@ -269,6 +271,67 @@ const verifyStripe = async (req, res) => {
   }
 };
 
+
+
+
+
+const submitInsurence = async (req, res) => {
+  try {
+    const { companyName, insuranceId } = req.body;
+    //const userId = req.userId; // assuming middleware adds this
+
+    if (!companyName || !insuranceId || !appointmentId) {
+      return res.json({ success: false, message: "All fields are required!" });
+    }
+
+    // Check appointment exists
+    const appointment = await appointmentModel.findById(appointmentId);
+    if (!appointment) {
+      return res.json({ success: false, message: "Appointment not found!" });
+    }
+
+    // Create insurance claim
+    const newClaim = new insurenceModel({
+      userId,
+      appointmentId,
+      companyName,
+      insuranceId,
+    });
+
+    await newClaim.save();
+
+    res.json({
+      success: true,
+      message: "Insurance claim submitted successfully!",
+      data: newClaim,
+    });
+  } catch (error) {
+    console.error("Insurance Submit Error:", error);
+    res.status(500).json({ success: false, message: "Server Error" });
+  }
+};
+
+const getAllInsurence = async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    const insurenceClaims = await insurenceModel
+      .find({ userId })
+      .populate("appointmentId", "slotDate slotTime")
+      .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      message: "Insurance claim details fetched successfully!",
+      data: insurenceClaims,
+    });
+  } catch (error) {
+    console.error("Fetch Insurance Error:", error);
+    res.status(500).json({ success: false, message: "Server Error" });
+  }
+};
+
+
 export {
   loginUser,
   registerUser,
@@ -279,4 +342,6 @@ export {
   cancelAppointment,
   paymentStripe,
   verifyStripe,
+  submitInsurence,
+  getAllInsurence
 };

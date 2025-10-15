@@ -14,18 +14,18 @@ const Footer = () => {
         <div>
           <p className='text-xl font-medium mb-5'>COMPANY</p>
           <ul className='flex flex-col gap-2 text-gray-600'>
-            <li>Home</li>
-            <li>About us</li>
-            <li>Delivery</li>
-            <li>Privacy policy</li>
+            <a href="/" className='hover:text-primary'><li>Home</li></a>
+            <a href="/about" className='hover:text-primary'><li>About us</li></a>
+            <a href="/delivery" className='hover:text-primary'><li>Delivery</li></a>
+            <a href="/privacy" className='hover:text-primary'><li>Privacy policy</li></a>
           </ul>
         </div>
 
         <div>
           <p className='text-xl font-medium mb-5'>GET IN TOUCH</p>
           <ul className='flex flex-col gap-2 text-gray-600'>
-            <li>+1-212-456-7890</li>
-            <li>greatstackdev@gmail.com</li>
+            <li>+94-72-123-4567</li>
+            <li>prescripto@gmail.com</li>
           </ul>
         </div>
 

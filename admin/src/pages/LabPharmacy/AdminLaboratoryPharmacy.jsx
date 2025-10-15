@@ -5,6 +5,8 @@ import PrescriptionsTable from "./PrescriptionsTable";
 import { LabPharmacyApi } from "../../api/labPharmacyApi";
 import axios from "axios";
 import { toast } from "react-toastify";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 
 const useToken = () =>
   localStorage.getItem("aToken") || localStorage.getItem("token") || "";
@@ -25,31 +27,25 @@ const AdminLaboratoryPharmacy = () => {
   const [refreshKey, setRefreshKey] = useState(0);
   const [loadingPatients, setLoadingPatients] = useState(false);
   const [loadingPatientData, setLoadingPatientData] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const canLoad = useMemo(
     () => Boolean(selectedPatient?._id),
     [selectedPatient]
   );
 
-  // Fetch all patients, labs, and prescriptions once
+  // Fetch all patients and highlights
   useEffect(() => {
     const fetchAllData = async () => {
       try {
         setLoadingPatients(true);
-
-        // Fetch appointments → unique patients
-        const { data } = await axios.get(
-          `${backendUrl}/api/admin/appointments`,
-          {
-            headers: { aToken: token },
-          }
-        );
+        const { data } = await axios.get(`${backendUrl}/api/admin/appointments`, {
+          headers: { aToken: token },
+        });
         if (!data.success) return toast.error(data.message);
 
         const uniquePatients = [
-          ...new Map(
-            data.appointments.map((a) => [a.userId, a.userData])
-          ).values(),
+          ...new Map(data.appointments.map((a) => [a.userId, a.userData])).values(),
         ];
         setPatients(uniquePatients);
 
@@ -58,8 +54,6 @@ const AdminLaboratoryPharmacy = () => {
           LabPharmacyApi.getAllLabTests({ token }),
           LabPharmacyApi.getAllPrescriptions({ token }),
         ]);
-        console.log("lab test", labsRes);
-        console.log("prescription", presRes);
         if (labsRes.success) setAllLabTests(labsRes.labTests || []);
         if (presRes.success) setAllPrescriptions(presRes.prescriptions || []);
       } catch (err) {
@@ -103,15 +97,51 @@ const AdminLaboratoryPharmacy = () => {
 
   const getPatientHighlight = (p) => {
     const hasNewLab = allLabTests.some(
-      (t) =>
-        t.patientId === p._id && ["pending", "scheduled"].includes(t.status)
+      (t) => t.patientId === p._id && ["pending", "scheduled"].includes(t.status)
     );
-
     const hasNewRx = allPrescriptions.some(
       (r) => r.patientId === p._id && r.status === "pending"
     );
-
     return hasNewLab || hasNewRx;
+  };
+
+  // Filter patients based on search term
+  const filteredPatients = patients.filter((p) =>
+    p.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Export PDF for all patients
+  const exportPDF = () => {
+    if (filteredPatients.length === 0) {
+      return toast.error("No patients available to export.");
+    }
+
+    const doc = new jsPDF();
+    doc.setFontSize(18);
+    doc.text("Patients Lab & Pharmacy Report", 14, 20);
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 28);
+
+    const tableColumn = ["#", "Patient", "Email", "Lab Tests", "Prescriptions"];
+    const tableRows = filteredPatients.map((p, index) => [
+      index + 1,
+      p.name,
+      p.email,
+      allLabTests.filter((t) => t.patientId === p._id).length,
+      allPrescriptions.filter((r) => r.patientId === p._id).length,
+    ]);
+
+    autoTable(doc, {
+      head: [tableColumn],
+      body: tableRows,
+      startY: 40,
+      theme: "striped",
+      headStyles: { fillColor: [22, 160, 133] },
+      styles: { fontSize: 10, cellPadding: 3 },
+    });
+
+    doc.save("Patients_Report.pdf");
   };
 
   return (
@@ -125,6 +155,28 @@ const AdminLaboratoryPharmacy = () => {
         </p>
       </header>
 
+      {/* Search & Export */}
+      {!selectedPatient && (
+        <div className="flex flex-wrap justify-between items-center mb-4 gap-3">
+          <div className="relative w-full sm:w-64">
+            <input
+              type="text"
+              placeholder="Search by patient name..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full px-4 py-2 rounded-full shadow-md border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all placeholder-gray-400"
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
+          </div>
+          <button
+            onClick={exportPDF}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-teal-600 transition-all"
+          >
+            Export PDF
+          </button>
+        </div>
+      )}
+
       {/* Patients Grid */}
       {!selectedPatient && (
         <div className="mt-4">
@@ -135,7 +187,7 @@ const AdminLaboratoryPharmacy = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {patients.map((p) => {
+              {filteredPatients.map((p) => {
                 const highlight = getPatientHighlight(p);
                 return (
                   <div
@@ -158,7 +210,7 @@ const AdminLaboratoryPharmacy = () => {
                   </div>
                 );
               })}
-              {patients.length === 0 && (
+              {filteredPatients.length === 0 && (
                 <p className="text-gray-500 text-sm col-span-full text-center">
                   No patients found.
                 </p>
@@ -178,17 +230,13 @@ const AdminLaboratoryPharmacy = () => {
             ← Back to Patients
           </button>
 
-          <h2 className="text-xl font-semibold mb-4">
-            {selectedPatient.name}'s Records
-          </h2>
+          <h2 className="text-xl font-semibold mb-4">{selectedPatient.name}'s Records</h2>
 
           <div className="flex bg-blue-100 rounded-full m-auto p-1 w-fit mb-6">
             <button
               onClick={() => setActiveTab("lab")}
               className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${
-                activeTab === "lab"
-                  ? "bg-blue-600 text-white"
-                  : "text-gray-600 hover:text-blue-600"
+                activeTab === "lab" ? "bg-blue-600 text-white" : "text-gray-600 hover:text-blue-600"
               }`}
             >
               Laboratory
@@ -196,9 +244,7 @@ const AdminLaboratoryPharmacy = () => {
             <button
               onClick={() => setActiveTab("pharmacy")}
               className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${
-                activeTab === "pharmacy"
-                  ? "bg-blue-600 text-white"
-                  : "text-gray-600 hover:text-blue-600"
+                activeTab === "pharmacy" ? "bg-blue-600 text-white" : "text-gray-600 hover:text-blue-600"
               }`}
             >
               Pharmacy
@@ -220,7 +266,6 @@ const AdminLaboratoryPharmacy = () => {
                   <LabOrdersTable labTests={patientData.labTests} />
                 </section>
               )}
-
               {activeTab === "pharmacy" && (
                 <section className="grid grid-cols-1 md:grid-cols-2 gap-6 transition-all">
                   <PrescriptionsTable

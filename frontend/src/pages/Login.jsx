@@ -1,8 +1,9 @@
+import axios from "axios";
 import React, { useContext, useEffect, useState } from "react";
 import { AppContext } from "../context/AppContext";
-import axios from "axios";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
+import { AiFillEye, AiFillEyeInvisible } from "react-icons/ai";
 
 const Login = () => {
   const [state, setState] = useState("Sign Up");
@@ -10,6 +11,7 @@ const Login = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const navigate = useNavigate();
   const { backendUrl, token, setToken } = useContext(AppContext);
@@ -17,32 +19,38 @@ const Login = () => {
   const onSubmitHandler = async (event) => {
     event.preventDefault();
 
-    if (state === "Sign Up") {
-      const { data } = await axios.post(backendUrl + "/api/user/register", {
-        name,
-        email,
-        password,
-      });
-
-      if (data.success) {
-        localStorage.setItem("token", data.token);
-        localStorage.setItem("userId", data.userId); // ✅ userId now available
-        setToken(data.token);
+    try {
+      let response;
+      if (state === "Sign Up") {
+        response = await axios.post(backendUrl + "/api/user/register", {
+          name,
+          email,
+          password,
+        });
       } else {
-        toast.error(data.message);
+        response = await axios.post(backendUrl + "/api/user/login", {
+          email,
+          password,
+        });
       }
-    } else {
-      const { data } = await axios.post(backendUrl + "/api/user/login", {
-        email,
-        password,
-      });
 
-      if (data.success) {
-        localStorage.setItem("token", data.token);
-        localStorage.setItem("userId", data.userId); 
-        setToken(data.token);
+      if (response.data.success) {
+        localStorage.setItem("token", response.data.token);
+        localStorage.setItem("userId", response.data.userId);
+        setToken(response.data.token);
       } else {
-        toast.error(data.message);
+        toast.error(response.data.message);
+      }
+    } catch (error) {
+      // Custom user-friendly error messages
+      if (error.response?.data?.message) {
+        if (error.response.data.message.includes("E11000")) {
+          toast.error("This email is already registered. Please login instead.");
+        } else {
+          toast.error("This email is already registered. Please login instead.");
+        }
+      } else {
+        toast.error("Something went wrong. Please try again later.");
       }
     }
   };
@@ -63,8 +71,9 @@ const Login = () => {
           Please {state === "Sign Up" ? "sign up" : "log in"} to book
           appointment
         </p>
-        {state === "Sign Up" ? (
-          <div className="w-full ">
+
+        {state === "Sign Up" && (
+          <div className="w-full">
             <p>Full Name</p>
             <input
               onChange={(e) => setName(e.target.value)}
@@ -74,8 +83,9 @@ const Login = () => {
               required
             />
           </div>
-        ) : null}
-        <div className="w-full ">
+        )}
+
+        <div className="w-full">
           <p>Email</p>
           <input
             onChange={(e) => setEmail(e.target.value)}
@@ -85,19 +95,28 @@ const Login = () => {
             required
           />
         </div>
-        <div className="w-full ">
+
+        <div className="w-full relative">
           <p>Password</p>
           <input
             onChange={(e) => setPassword(e.target.value)}
             value={password}
-            className="border border-[#DADADA] rounded w-full p-2 mt-1"
-            type="password"
+            className="border border-[#DADADA] rounded w-full p-2 mt-1 pr-10"
+            type={showPassword ? "text" : "password"}
             required
           />
+          <span
+            className="absolute right-3 top-9 cursor-pointer text-gray-500"
+            onClick={() => setShowPassword(!showPassword)}
+          >
+            {showPassword ? <AiFillEyeInvisible size={20} /> : <AiFillEye size={20} />}
+          </span>
         </div>
+
         <button className="bg-primary text-white w-full py-2 my-2 rounded-md text-base">
           {state === "Sign Up" ? "Create account" : "Login"}
         </button>
+
         {state === "Sign Up" ? (
           <p>
             Already have an account?{" "}
@@ -110,7 +129,7 @@ const Login = () => {
           </p>
         ) : (
           <p>
-            Create an new account?{" "}
+            Create a new account?{" "}
             <span
               onClick={() => setState("Sign Up")}
               className="text-primary underline cursor-pointer"
