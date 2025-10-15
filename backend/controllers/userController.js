@@ -5,8 +5,11 @@ import userModel from "../models/userModel.js";
 import doctorModel from "../models/doctorModel.js";
 import appointmentModel from "../models/appointmentModel.js";
 import insurenceModel from "../models/insurenceModel.js";
+import consultationModel from "../models/consultationModel.js";
+import { generateConsultationReportPDF, generatePDFFilename } from "../services/pdfService.js";
 import { v2 as cloudinary } from "cloudinary";
 import stripe from "stripe";
+import { sendAppointmentConfirmationEmail, sendAppointmentCancellationEmail } from "../services/emailService.js";
 
 
 // Stripe Payment Gateway Initialize
@@ -162,6 +165,19 @@ const bookAppointment = async (req, res) => {
 
     await doctorModel.findByIdAndUpdate(docId, { slots_booked });
 
+    // Send appointment confirmation email
+    try {
+      const emailResult = await sendAppointmentConfirmationEmail(appointmentData);
+      if (emailResult.success) {
+        console.log('Appointment confirmation email sent successfully');
+      } else {
+        console.error('Failed to send appointment confirmation email:', emailResult.error);
+      }
+    } catch (emailError) {
+      console.error('Error sending appointment confirmation email:', emailError);
+      // Don't fail the appointment booking if email fails
+    }
+
     res.json({ success: true, message: "Appointment Booked" });
   } catch (error) {
     console.log(error);
@@ -191,6 +207,19 @@ const cancelAppointment = async (req, res) => {
       (e) => e !== slotTime
     );
     await doctorModel.findByIdAndUpdate(docId, { slots_booked });
+
+    // Send appointment cancellation email
+    try {
+      const emailResult = await sendAppointmentCancellationEmail(appointmentData);
+      if (emailResult.success) {
+        console.log('Appointment cancellation email sent successfully');
+      } else {
+        console.error('Failed to send appointment cancellation email:', emailResult.error);
+      }
+    } catch (emailError) {
+      console.error('Error sending appointment cancellation email:', emailError);
+      // Don't fail the appointment cancellation if email fails
+    }
 
     res.json({ success: true, message: "Appointment Cancelled" });
   } catch (error) {
@@ -332,6 +361,101 @@ const getAllInsurence = async (req, res) => {
 };
 
 
+// API to get patient consultation history
+const getConsultationHistory = async (req, res) => {
+  try {
+    const { userId } = req.body;
+    
+    const consultations = await consultationModel.find({ patientId: userId })
+      .populate('doctorId', 'name speciality')
+      .populate('appointmentId', 'slotDate slotTime')
+      .sort({ createdAt: -1 });
+
+    res.json({ 
+      success: true, 
+      consultations 
+    });
+
+  } catch (error) {
+    console.log(error);
+    res.json({ success: false, message: error.message });
+  }
+};
+
+// API to get patient consultation report PDF
+const getPatientConsultationReport = async (req, res) => {
+  try {
+    const { appointmentId } = req.body;
+    const userId = req.userId; // Get from token
+
+    console.log('Getting consultation report for:', { appointmentId, userId });
+
+    // Get consultation data with all related information
+    const consultation = await consultationModel.findOne({ 
+      appointmentId, 
+      patientId: userId 
+    })
+      .populate('patientId', 'name email phone dob gender address')
+      .populate('doctorId', 'name speciality degree experience address');
+
+    console.log('Found consultation:', consultation ? 'Yes' : 'No');
+
+    if (!consultation) {
+      return res.json({ success: false, message: 'Consultation not found' });
+    }
+
+    // Get appointment data
+    const appointment = await appointmentModel.findById(appointmentId);
+    if (!appointment) {
+      return res.json({ success: false, message: 'Appointment not found' });
+    }
+
+    // Prepare data for PDF generation
+    const consultationData = {
+      consultation,
+      appointment,
+      doctor: consultation.doctorId,
+      patient: {
+        ...consultation.patientId.toObject(),
+        age: consultation.patientId.dob ? calculateAge(consultation.patientId.dob) : 'Not specified'
+      }
+    };
+
+    // Generate PDF
+    const pdfDoc = generateConsultationReportPDF(consultationData);
+    const pdfBuffer = pdfDoc.output('arraybuffer');
+    
+    // Generate filename
+    const filename = generatePDFFilename(consultationData.patient.name, appointment.slotDate);
+
+    // Set response headers for PDF download
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', pdfBuffer.byteLength);
+
+    // Send PDF buffer
+    res.send(Buffer.from(pdfBuffer));
+
+  } catch (error) {
+    console.log(error);
+    res.json({ success: false, message: error.message });
+  }
+};
+
+// Helper function to calculate age
+const calculateAge = (dob) => {
+  const today = new Date();
+  const birthDate = new Date(dob);
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+  
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  
+  return age;
+};
+
 export {
   loginUser,
   registerUser,
@@ -343,5 +467,7 @@ export {
   paymentStripe,
   verifyStripe,
   submitInsurence,
-  getAllInsurence
+  getAllInsurence,
+  getConsultationHistory,
+  getPatientConsultationReport
 };

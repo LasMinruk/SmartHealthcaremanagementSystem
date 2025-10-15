@@ -17,6 +17,9 @@ const MyAppointments = () => {
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [insuranceCompany, setInsuranceCompany] = useState("");
   const [insuranceId, setInsuranceId] = useState("");
+  const [consultationHistory, setConsultationHistory] = useState([]);
+  const [selectedPrescription, setSelectedPrescription] = useState(null);
+  const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
 
   const insuranceCompanies = [
     "AIA Sri Lanka",
@@ -52,6 +55,52 @@ const MyAppointments = () => {
       console.log(error);
       toast.error(error.message);
     }
+  };
+
+  // Get consultation history
+  const getConsultationHistory = async () => {
+    try {
+      const { data } = await axios.get(`${backendUrl}/api/user/consultation-history`, {
+        headers: { token },
+      });
+      if (data.success) {
+        setConsultationHistory(data.consultations);
+        console.log('Loaded consultation history:', data.consultations);
+      } else {
+        console.error('Failed to load consultation history:', data.message);
+      }
+    } catch (error) {
+      console.error('Error loading consultation history:', error);
+    }
+  };
+
+  // View prescription details
+  const viewPrescription = (appointmentId) => {
+    const consultation = consultationHistory.find(cons => 
+      cons.appointmentId._id === appointmentId
+    );
+    
+    if (consultation) {
+      setSelectedPrescription(consultation);
+      setShowPrescriptionModal(true);
+    } else {
+      toast.error("Prescription not found");
+    }
+  };
+
+  // Close prescription modal
+  const closePrescriptionModal = () => {
+    setShowPrescriptionModal(false);
+    setSelectedPrescription(null);
+  };
+
+  // Check if appointment has consultation record
+  const hasConsultationRecord = (appointmentId) => {
+    const hasRecord = consultationHistory.some(consultation => 
+      consultation.appointmentId._id === appointmentId
+    );
+    console.log(`Checking consultation record for appointment ${appointmentId}:`, hasRecord);
+    return hasRecord;
   };
 
   // Cancel Appointment
@@ -184,7 +233,10 @@ const handleInsuranceSubmit = async (e) => {
 };
 
   useEffect(() => {
-    if (token) getUserAppointments();
+    if (token) {
+      getUserAppointments();
+      getConsultationHistory();
+    }
   }, [token]);
 
   return (
@@ -234,6 +286,20 @@ const handleInsuranceSubmit = async (e) => {
                   className="text-[#696969] px-4 py-2 border rounded hover:bg-primary hover:text-white transition-all"
                 >
                   Join Video
+                </button>
+              )}
+              
+              {/* Prescription View Button */}
+              {hasConsultationRecord(item._id) && (
+                <button
+                  onClick={() => viewPrescription(item._id)}
+                  className="text-green-600 px-4 py-2 border border-green-600 rounded hover:bg-green-600 hover:text-white transition-all flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                  View Prescription
                 </button>
               )}
             </div>
@@ -360,6 +426,155 @@ const handleInsuranceSubmit = async (e) => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Prescription Modal */}
+      {showPrescriptionModal && selectedPrescription && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              {/* Header */}
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-800">Prescription Details</h2>
+                <button
+                  onClick={closePrescriptionModal}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Doctor Information */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                <h3 className="text-lg font-semibold text-blue-800 mb-3">Doctor Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-blue-600 font-medium">Doctor Name</p>
+                    <p className="text-blue-800">Dr. {selectedPrescription.doctorId?.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-blue-600 font-medium">Speciality</p>
+                    <p className="text-blue-800">{selectedPrescription.doctorId?.speciality}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Patient Information */}
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-3">Patient Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-600 font-medium">Appointment Date</p>
+                    <p className="text-gray-800">{slotDateFormat(selectedPrescription.appointmentId?.slotDate)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 font-medium">Appointment Time</p>
+                    <p className="text-gray-800">{selectedPrescription.appointmentId?.slotTime}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Diagnosis */}
+              {selectedPrescription.diagnosis && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-3">Diagnosis</h3>
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <p className="text-yellow-800">{selectedPrescription.diagnosis}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Symptoms */}
+              {selectedPrescription.symptoms && selectedPrescription.symptoms.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-3">Symptoms</h3>
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                    <p className="text-orange-800">{selectedPrescription.symptoms.join(', ')}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Medications */}
+              {selectedPrescription.medications && selectedPrescription.medications.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-3">Prescribed Medications</h3>
+                  <div className="space-y-3">
+                    {selectedPrescription.medications.map((medication, index) => (
+                      <div key={index} className="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <div className="flex justify-between items-start mb-2">
+                          <h4 className="font-semibold text-green-800 text-lg">{medication.name}</h4>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                          <div>
+                            <p className="text-green-600 font-medium">Dosage</p>
+                            <p className="text-green-800">{medication.dosage}</p>
+                          </div>
+                          <div>
+                            <p className="text-green-600 font-medium">Frequency</p>
+                            <p className="text-green-800">{medication.frequency}</p>
+                          </div>
+                          <div>
+                            <p className="text-green-600 font-medium">Duration</p>
+                            <p className="text-green-800">{medication.duration}</p>
+                          </div>
+                        </div>
+                        {medication.instructions && (
+                          <div className="mt-3">
+                            <p className="text-green-600 font-medium text-sm">Instructions</p>
+                            <p className="text-green-800 text-sm">{medication.instructions}</p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Consultation Notes */}
+              {selectedPrescription.consultationNotes && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-3">Consultation Notes</h3>
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <p className="text-gray-800 whitespace-pre-wrap">{selectedPrescription.consultationNotes}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Follow-up Information */}
+              {selectedPrescription.followUpRequired && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-3">Follow-up Information</h3>
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                    {selectedPrescription.followUpDate && (
+                      <div className="mb-2">
+                        <p className="text-purple-600 font-medium text-sm">Follow-up Date</p>
+                        <p className="text-purple-800">{new Date(selectedPrescription.followUpDate).toLocaleDateString()}</p>
+                      </div>
+                    )}
+                    {selectedPrescription.followUpNotes && (
+                      <div>
+                        <p className="text-purple-600 font-medium text-sm">Follow-up Notes</p>
+                        <p className="text-purple-800">{selectedPrescription.followUpNotes}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Close Button */}
+              <div className="flex justify-end mt-6">
+                <button
+                  onClick={closePrescriptionModal}
+                  className="px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

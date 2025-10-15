@@ -12,7 +12,7 @@ const Login = () => {
 
   const backendUrl = import.meta.env.VITE_BACKEND_URL;
 
-  const { setDToken } = useContext(DoctorContext);
+  const { setDToken, setDoctorId, setDName } = useContext(DoctorContext);
   const { setAToken } = useContext(AdminContext);
 
   const onSubmitHandler = async (event) => {
@@ -36,8 +36,11 @@ const Login = () => {
       });
       if (data.success) {
         setDToken(data.token);
+        setDoctorId(data.userId);
+        setDName(data.name || 'Doctor');
         localStorage.setItem("dToken", data.token);
         localStorage.setItem("doctorId", data.userId);
+        localStorage.setItem("dName", data.name || 'Doctor');
       } else {
         toast.error(data.message);
       }
