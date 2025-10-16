@@ -1,6 +1,7 @@
 import React, { useContext } from "react";
 import { DoctorContext } from "./context/DoctorContext";
 import { AdminContext } from "./context/AdminContext";
+import { LabPharmacyContext } from "./context/LabPharmacyContext";
 import { Route, Routes } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -18,12 +19,14 @@ import VideoCall from "./pages/Doctor/VideoCall";
 import VideoConsultation from "./pages/Doctor/VideoConsultation";
 import AdminLaboratoryPharmacy from "./pages/LabPharmacy/AdminLaboratoryPharmacy";
 import DoctorPatientDetails from "./pages/Doctor/DoctorPatientDetails";
+import InsurenceApprove from "./pages/Admin/InsurenceApprove";
 
 const App = () => {
   const { dToken } = useContext(DoctorContext);
   const { aToken } = useContext(AdminContext);
+  const { lbToken } = useContext(LabPharmacyContext);
 
-  return dToken || aToken ? (
+  return dToken || aToken || lbToken ? (
     <div className="bg-[#F8F9FD]">
       <ToastContainer />
       <Navbar />
@@ -44,6 +47,7 @@ const App = () => {
             path="/laboratory-pharmacy"
             element={<AdminLaboratoryPharmacy />}
           />
+          <Route path="/insuarence-approve" element={<InsurenceApprove/>} />
           <Route
             path="/doctor/patient/:id"
             element={<DoctorPatientDetails />}

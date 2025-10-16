@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from "uuid";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import validator from "validator";
@@ -5,11 +6,18 @@ import doctorModel from "../models/doctorModel.js";
 import appointmentModel from "../models/appointmentModel.js";
 import insurenceModel from "../models/insurenceModel.js";
 import consultationModel from "../models/consultationModel.js";
-import { generateConsultationReportPDF, generatePDFFilename } from "../services/pdfService.js";
+import qrCodeModel from "../models/qrCodeModel.js";
+import {
+  generateConsultationReportPDF,
+  generatePDFFilename,
+} from "../services/pdfService.js";
 import { v2 as cloudinary } from "cloudinary";
 import stripe from "stripe";
 import patientModel from "../models/patientModel.js";
-import { sendAppointmentConfirmationEmail, sendAppointmentCancellationEmail } from "../services/emailService.js";
+import {
+  sendAppointmentConfirmationEmail,
+  sendAppointmentCancellationEmail,
+} from "../services/emailService.js";
 
 // Stripe Payment Gateway Initialize
 const stripeInstance = new stripe(process.env.STRIPE_SECRET_KEY);
@@ -92,11 +100,25 @@ const getProfile = async (req, res) => {
 // API to update user profile data
 const updateProfile = async (req, res) => {
   try {
-    let { userId, name, phone, address, dob, gender, bloodClass, weight, height, allergies } = req.body;
+    let {
+      userId,
+      name,
+      phone,
+      address,
+      dob,
+      gender,
+      bloodClass,
+      weight,
+      height,
+      allergies,
+    } = req.body;
     const imageFile = req.file;
 
     if (!name || !phone) {
-      return res.json({ success: false, message: "Name and phone are required" });
+      return res.json({
+        success: false,
+        message: "Name and phone are required",
+      });
     }
 
     // Ensure correct types
@@ -108,18 +130,29 @@ const updateProfile = async (req, res) => {
     // Prevent enum rejection
     if (bloodClass === "Not Selected") bloodClass = "";
 
-    const updateData = { name, phone, dob, gender, bloodClass, weight, height, allergies, address };
+    const updateData = {
+      name,
+      phone,
+      dob,
+      gender,
+      bloodClass,
+      weight,
+      height,
+      allergies,
+      address,
+    };
 
     // Upload image only if new image is provided
     if (imageFile) {
-      const imageUpload = await cloudinary.uploader.upload(imageFile.path, { resource_type: "image" });
+      const imageUpload = await cloudinary.uploader.upload(imageFile.path, {
+        resource_type: "image",
+      });
       updateData.image = imageUpload.secure_url;
     }
 
     await patientModel.findByIdAndUpdate(userId, updateData);
 
     res.json({ success: true, message: "Profile Updated" });
-
   } catch (error) {
     console.log(error);
     res.json({ success: false, message: error.message });
@@ -213,14 +246,22 @@ const cancelAppointment = async (req, res) => {
 
     // Send appointment cancellation email
     try {
-      const emailResult = await sendAppointmentCancellationEmail(appointmentData);
+      const emailResult = await sendAppointmentCancellationEmail(
+        appointmentData
+      );
       if (emailResult.success) {
-        console.log('Appointment cancellation email sent successfully');
+        console.log("Appointment cancellation email sent successfully");
       } else {
-        console.error('Failed to send appointment cancellation email:', emailResult.error);
+        console.error(
+          "Failed to send appointment cancellation email:",
+          emailResult.error
+        );
       }
     } catch (emailError) {
-      console.error('Error sending appointment cancellation email:', emailError);
+      console.error(
+        "Error sending appointment cancellation email:",
+        emailError
+      );
       // Don't fail the appointment cancellation if email fails
     }
 
@@ -254,11 +295,11 @@ const paymentStripe = async (req, res) => {
     if (!appointmentData || appointmentData.cancelled) {
       return res.json({
         success: false,
-        message: "Appointment Cancelled or not found",
+        message: "Appointment cancelled or not found",
       });
     }
 
-    const currency = process.env.CURRENCY.toLowerCase();
+    const currency = (process.env.CURRENCY || "lkr").toLowerCase();
 
     const line_items = [
       {
@@ -272,16 +313,23 @@ const paymentStripe = async (req, res) => {
     ];
 
     const session = await stripeInstance.checkout.sessions.create({
+      payment_method_types: ["card"],
+      line_items,
+      mode: "payment",
       success_url: `${origin}/verify?success=true&appointmentId=${appointmentData._id}`,
       cancel_url: `${origin}/verify?success=false&appointmentId=${appointmentData._id}`,
-      line_items: line_items,
-      mode: "payment",
     });
 
-    res.json({ success: true, session_url: session.url });
+    return res.json({
+      success: true,
+      session_url: session.url,
+    });
   } catch (error) {
-    console.log(error);
-    res.json({ success: false, message: error.message });
+    console.error("Stripe Payment Error:", error);
+    return res.json({
+      success: false,
+      message: error.message,
+    });
   }
 };
 
@@ -303,22 +351,15 @@ const verifyStripe = async (req, res) => {
   }
 };
 
-
-
-
-
 const submitInsurence = async (req, res) => {
   try {
-    const { companyName, insuranceId, appointmentId, userId } = req.body;
-    //const userId = req.userId; // assuming middleware adds this
-
-    console.log("Request Body:", req.body);
+    const { userId, appointmentId, companyName, insuranceId } = req.body;
 
     if (!companyName || !insuranceId || !appointmentId) {
       return res.json({ success: false, message: "All fields are required!" });
     }
 
-    // Check appointment exists
+    // Check if appointment exists
     const appointment = await appointmentModel.findById(appointmentId);
     if (!appointment) {
       return res.json({ success: false, message: "Appointment not found!" });
@@ -334,53 +375,93 @@ const submitInsurence = async (req, res) => {
 
     await newClaim.save();
 
-    res.json({
+    // Update appointment payment status to "pending"
+    const updatedAppointment = await appointmentModel.findByIdAndUpdate(
+      appointmentId,
+      { payment: "pending" },
+      { new: true } // return updated document
+    );
+
+    console.log("Payment status updated to pending:", updatedAppointment.payment);
+
+    return res.json({
       success: true,
-      message: "Insurance claim submitted successfully!",
+      message: "Insurance claim submitted successfully! Payment set to pending.",
       data: newClaim,
+      updatedAppointment,
     });
   } catch (error) {
     console.error("Insurance Submit Error:", error);
-    res.status(500).json({ success: false, message: "Server Error" });
+    return res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
-const getAllInsurence = async (req, res) => {
+
+
+
+const getAllInsurances = async (req, res) => {
   try {
-    const userId = req.userId;
+    const insurances = await insurenceModel.find(); // simple fetch all
 
-    const insurenceClaims = await insurenceModel
-      .find({ userId })
-      .populate("appointmentId", "slotDate slotTime")
-      .sort({ createdAt: -1 });
-
-    res.json({
+    res.status(200).json({
       success: true,
-      message: "Insurance claim details fetched successfully!",
-      data: insurenceClaims,
+      data: insurances,
     });
   } catch (error) {
-    console.error("Fetch Insurance Error:", error);
-    res.status(500).json({ success: false, message: "Server Error" });
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch insurances",
+      error: error.message,
+    });
   }
 };
+const updateAppointmentPayment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { payment } = req.body;
 
+    const validStatuses = ["pending", "complete", "rejected"];
+    if (!validStatuses.includes(payment)) {
+      return res.status(400).json({ success: false, message: "Invalid payment status" });
+    }
+
+    const appointment = await appointmentModel.findByIdAndUpdate(
+      id,
+      { payment },
+      { new: true }
+    );
+
+    if (!appointment) {
+      return res.status(404).json({ success: false, message: "Appointment not found" });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Payment status updated to ${payment}`,
+      data: appointment,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Error updating payment status" });
+  }
+};
 
 // API to get patient consultation history
 const getConsultationHistory = async (req, res) => {
   try {
     const { userId } = req.body;
-    
-    const consultations = await consultationModel.find({ patientId: userId })
-      .populate('doctorId', 'name speciality')
-      .populate('appointmentId', 'slotDate slotTime')
+
+    const consultations = await consultationModel
+      .find({ patientId: userId })
+      .populate("doctorId", "name speciality")
+      .populate("appointmentId", "slotDate slotTime")
       .sort({ createdAt: -1 });
 
-    res.json({ 
-      success: true, 
-      consultations 
+    res.json({
+      success: true,
+      consultations,
     });
-
   } catch (error) {
     console.log(error);
     res.json({ success: false, message: error.message });
@@ -393,26 +474,27 @@ const getPatientConsultationReport = async (req, res) => {
     const { appointmentId } = req.body;
     const userId = req.userId; // Get from token
 
-    console.log('Getting consultation report for:', { appointmentId, userId });
+    console.log("Getting consultation report for:", { appointmentId, userId });
 
     // Get consultation data with all related information
-    const consultation = await consultationModel.findOne({ 
-      appointmentId, 
-      patientId: userId 
-    })
-      .populate('patientId', 'name email phone dob gender address')
-      .populate('doctorId', 'name speciality degree experience address');
+    const consultation = await consultationModel
+      .findOne({
+        appointmentId,
+        patientId: userId,
+      })
+      .populate("patientId", "name email phone dob gender address")
+      .populate("doctorId", "name speciality degree experience address");
 
-    console.log('Found consultation:', consultation ? 'Yes' : 'No');
+    console.log("Found consultation:", consultation ? "Yes" : "No");
 
     if (!consultation) {
-      return res.json({ success: false, message: 'Consultation not found' });
+      return res.json({ success: false, message: "Consultation not found" });
     }
 
     // Get appointment data
     const appointment = await appointmentModel.findById(appointmentId);
     if (!appointment) {
-      return res.json({ success: false, message: 'Appointment not found' });
+      return res.json({ success: false, message: "Appointment not found" });
     }
 
     // Prepare data for PDF generation
@@ -422,25 +504,29 @@ const getPatientConsultationReport = async (req, res) => {
       doctor: consultation.doctorId,
       patient: {
         ...consultation.patientId.toObject(),
-        age: consultation.patientId.dob ? calculateAge(consultation.patientId.dob) : 'Not specified'
-      }
+        age: consultation.patientId.dob
+          ? calculateAge(consultation.patientId.dob)
+          : "Not specified",
+      },
     };
 
     // Generate PDF
     const pdfDoc = generateConsultationReportPDF(consultationData);
-    const pdfBuffer = pdfDoc.output('arraybuffer');
-    
+    const pdfBuffer = pdfDoc.output("arraybuffer");
+
     // Generate filename
-    const filename = generatePDFFilename(consultationData.patient.name, appointment.slotDate);
+    const filename = generatePDFFilename(
+      consultationData.patient.name,
+      appointment.slotDate
+    );
 
     // Set response headers for PDF download
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.setHeader('Content-Length', pdfBuffer.byteLength);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Length", pdfBuffer.byteLength);
 
     // Send PDF buffer
     res.send(Buffer.from(pdfBuffer));
-
   } catch (error) {
     console.log(error);
     res.json({ success: false, message: error.message });
@@ -453,12 +539,80 @@ const calculateAge = (dob) => {
   const birthDate = new Date(dob);
   let age = today.getFullYear() - birthDate.getFullYear();
   const monthDiff = today.getMonth() - birthDate.getMonth();
-  
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+
+  if (
+    monthDiff < 0 ||
+    (monthDiff === 0 && today.getDate() < birthDate.getDate())
+  ) {
     age--;
   }
-  
+
   return age;
+};
+
+const getQrCodeData = async (req, res) => {
+  try {
+    const { userId } = req.body;
+    let qrData = await qrCodeModel
+      .findOne({ userId })
+      .populate("userId", "name email");
+
+    if (!qrData) {
+      const qrIdentifier = uuidv4();
+      qrData = new qrCodeModel({
+        userId,
+        qrIdentifier,
+        disease: "Sample Disease",
+        medicine: "Sample Medicine",
+        doctorDetails: "Dr. John Doe (General Physician)",
+      });
+      await qrData.save();
+      qrData = await qrCodeModel
+        .findOne({ userId })
+        .populate("userId", "name email");
+    }
+
+    res.json({ success: true, data: qrData });
+  } catch (error) {
+    console.log(error);
+    res
+      .status(500)
+      .json({
+        success: false,
+        message: "Server error while fetching QR code data",
+      });
+  }
+};
+
+const updateQrCodeData = async (req, res) => {
+  try {
+    const { userId, disease, medicine, doctorDetails } = req.body;
+    const qrData = await qrCodeModel.findOneAndUpdate(
+      { userId },
+      { disease, medicine, doctorDetails },
+      { new: true }
+    );
+
+    if (!qrData) {
+      return res
+        .status(404)
+        .json({ success: false, message: "QR Code data not found." });
+    }
+
+    res.json({
+      success: true,
+      message: "QR Code updated successfully",
+      data: qrData,
+    });
+  } catch (error) {
+    console.log(error);
+    res
+      .status(500)
+      .json({
+        success: false,
+        message: "Server error while updating QR code data",
+      });
+  }
 };
 
 export {
@@ -472,7 +626,10 @@ export {
   paymentStripe,
   verifyStripe,
   submitInsurence,
-  getAllInsurence,
+  getAllInsurances,
+  updateAppointmentPayment,
   getConsultationHistory,
-  getPatientConsultationReport
+  getPatientConsultationReport,
+  getQrCodeData,
+  updateQrCodeData,
 };

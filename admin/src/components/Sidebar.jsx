@@ -3,11 +3,13 @@ import { assets } from "../assets/assets";
 import { NavLink } from "react-router-dom";
 import { DoctorContext } from "../context/DoctorContext";
 import { AdminContext } from "../context/AdminContext";
-import { FlaskConical } from "lucide-react";
+import { LabPharmacyContext } from "../context/LabPharmacyContext";
+import { FlaskConical, BookMarked } from "lucide-react";
 
 const Sidebar = () => {
   const { dToken } = useContext(DoctorContext);
   const { aToken } = useContext(AdminContext);
+  const { lbToken } = useContext(LabPharmacyContext);
 
   return (
     <div className="min-h-screen bg-white border-r">
@@ -57,7 +59,6 @@ const Sidebar = () => {
             <img className="min-w-5" src={assets.people_icon} alt="" />
             <p className="hidden md:block">Doctors List</p>
           </NavLink>
-          {/* "/laboratory-pharmacy" Laboratory & Pharmacy */}
           <NavLink
             to={"/laboratory-pharmacy"}
             className={({ isActive }) =>
@@ -68,6 +69,17 @@ const Sidebar = () => {
           >
             <FlaskConical className="w-6 h-6 text-black" />
             <p className="hidden md:block">Laboratory & Pharmacy</p>
+          </NavLink>
+          <NavLink
+            to={"/insuarence-approve"}
+            className={({ isActive }) =>
+              `flex items-center gap-3 py-3.5 px-3 md:px-9 md:min-w-72 cursor-pointer ${
+                isActive ? "bg-[#F2F3FF] border-r-4 border-primary" : ""
+              }`
+            }
+          >
+            <BookMarked className="w-6 h-6 text-black" />
+            <p className="hidden md:block">Insuarence Approve</p>
           </NavLink>
         </ul>
       )}
@@ -106,6 +118,22 @@ const Sidebar = () => {
           >
             <img className="min-w-5" src={assets.people_icon} alt="" />
             <p className="hidden md:block">Profile</p>
+          </NavLink>
+        </ul>
+      )}
+
+      {lbToken && (
+        <ul className="text-[#515151] mt-5">
+          <NavLink
+            to={"/laboratory-pharmacy"}
+            className={({ isActive }) =>
+              `flex items-center gap-3 py-3.5 px-3 md:px-9 md:min-w-72 cursor-pointer ${
+                isActive ? "bg-[#F2F3FF] border-r-4 border-primary" : ""
+              }`
+            }
+          >
+            <FlaskConical className="w-6 h-6 text-black" />
+            <p className="hidden md:block">Laboratory & Pharmacy</p>
           </NavLink>
         </ul>
       )}

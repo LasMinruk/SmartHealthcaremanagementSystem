@@ -3,8 +3,8 @@ import bcrypt from "bcrypt";
 import doctorModel from "../models/doctorModel.js";
 import appointmentModel from "../models/appointmentModel.js";
 import consultationModel from "../models/consultationModel.js";
-import userModel from "../models/userModel.js";
 import { generateConsultationReportPDF, generatePDFFilename } from "../services/pdfService.js";
+import patientModel from "../models/patientModel.js";
 
 // API for doctor Login 
 const loginDoctor = async (req, res) => {
@@ -314,7 +314,7 @@ const getPatientInfoForConsultation = async (req, res) => {
             return res.json({ success: false, message: 'Appointment not found' });
         }
 
-        const patient = await userModel.findById(appointment.userId).select('-password');
+        const patient = await patientModel.findById(appointment.userId).select('-password');
         
         res.json({ 
             success: true, 

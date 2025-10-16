@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useContext } from "react";
 import UploadLabResultDialog from "./UploadLabResultDialog";
 import LabOrdersTable from "./LabOrdersTable";
 import PrescriptionsTable from "./PrescriptionsTable";
@@ -7,12 +7,14 @@ import axios from "axios";
 import { toast } from "react-toastify";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-
-const useToken = () =>
-  localStorage.getItem("aToken") || localStorage.getItem("token") || "";
+import { AdminContext } from "../../context/AdminContext";
+import { LabPharmacyContext } from "../../context/LabPharmacyContext";
 
 const AdminLaboratoryPharmacy = () => {
-  const token = useToken();
+  const { aToken } = useContext(AdminContext);
+  const { lbToken } = useContext(LabPharmacyContext);
+  
+  const token = aToken || lbToken || "";
   const backendUrl = import.meta.env.VITE_BACKEND_URL;
 
   const [patients, setPatients] = useState([]);
@@ -37,12 +39,25 @@ const AdminLaboratoryPharmacy = () => {
   // Fetch all patients and highlights
   useEffect(() => {
     const fetchAllData = async () => {
+      if (!token) {
+        toast.error("Please login to access this page");
+        return;
+      }
+      
       try {
         setLoadingPatients(true);
+        
+        // Set correct header based on token type
+        const headers = aToken ? { aToken } : { lbtoken: lbToken };
+        
         const { data } = await axios.get(`${backendUrl}/api/admin/appointments`, {
-          headers: { aToken: token },
+          headers,
         });
-        if (!data.success) return toast.error(data.message);
+        
+        if (!data.success) {
+          toast.error(data.message);
+          return;
+        }
 
         const uniquePatients = [
           ...new Map(data.appointments.map((a) => [a.userId, a.userData])).values(),
@@ -51,30 +66,35 @@ const AdminLaboratoryPharmacy = () => {
 
         // Fetch all labs and prescriptions for highlight
         const [labsRes, presRes] = await Promise.all([
-          LabPharmacyApi.getAllLabTests({ token }),
-          LabPharmacyApi.getAllPrescriptions({ token }),
+          LabPharmacyApi.getAllLabTests({ token, isLabToken: !!lbToken }),
+          LabPharmacyApi.getAllPrescriptions({ token, isLabToken: !!lbToken }),
         ]);
+        
         if (labsRes.success) setAllLabTests(labsRes.labTests || []);
         if (presRes.success) setAllPrescriptions(presRes.prescriptions || []);
       } catch (err) {
-        toast.error(err.message);
+        console.error("Error fetching data:", err);
+        toast.error(err?.response?.data?.message || "Failed to fetch data");
       } finally {
         setLoadingPatients(false);
       }
     };
     fetchAllData();
-  }, [token, refreshKey]);
+  }, [token, refreshKey, aToken, lbToken, backendUrl]);
 
-  // Fetch single patient’s records when selected
+  // Fetch single patient's records when selected
   useEffect(() => {
     const fetchData = async () => {
-      if (!canLoad) return;
+      if (!canLoad || !token) return;
+      
       try {
         setLoadingPatientData(true);
         const res = await LabPharmacyApi.getPatientLabAndRx({
           token,
           patientId: selectedPatient._id,
+          isLabToken: !!lbToken,
         });
+        
         if (res.success) {
           setPatientData({
             labTests: res.labTests || [],
@@ -84,13 +104,14 @@ const AdminLaboratoryPharmacy = () => {
           toast.error(res.message);
         }
       } catch (err) {
-        toast.error(err.message);
+        console.error("Error fetching patient data:", err);
+        toast.error(err?.response?.data?.message || "Failed to fetch patient data");
       } finally {
         setLoadingPatientData(false);
       }
     };
     fetchData();
-  }, [token, selectedPatient, refreshKey, canLoad]);
+  }, [token, selectedPatient, refreshKey, canLoad, lbToken]);
 
   const handleUploaded = () => setRefreshKey((k) => k + 1);
   const handleChanged = () => setRefreshKey((k) => k + 1);

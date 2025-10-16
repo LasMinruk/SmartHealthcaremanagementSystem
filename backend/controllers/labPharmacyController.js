@@ -3,6 +3,27 @@ import prescriptionModel from "../models/prescriptionModel.js";
 import patientModel from "../models/patientModel.js";
 import doctorModel from "../models/doctorModel.js";
 import { v2 as cloudinary } from "cloudinary";
+import jwt from "jsonwebtoken";
+
+// API for Lab/Pharmacy login
+const loginLabPharmacy = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (
+      email === process.env.PHARMACY_EMAIL &&
+      password === process.env.PHARMACY_PASSWORD
+    ) {
+      const token = jwt.sign(email + password, process.env.JWT_SECRET);
+      res.json({ success: true, token });
+    } else {
+      res.json({ success: false, message: "Invalid credentials" });
+    }
+  } catch (error) {
+    console.log(error);
+    res.json({ success: false, message: error.message });
+  }
+};
 
 /**
  * Doctor requests new lab test for patient
@@ -174,6 +195,7 @@ const getAllPrescriptions = async (req, res) => {
 
 
 export {
+  loginLabPharmacy,
   requestLabTest,
   uploadLabResult,
   createPrescription,

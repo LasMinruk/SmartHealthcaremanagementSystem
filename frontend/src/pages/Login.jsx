@@ -14,7 +14,7 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
 
   const navigate = useNavigate();
-  const { backendUrl, token, setToken } = useContext(AppContext);
+  const { backendUrl, token, setToken, loadUserProfileData } = useContext(AppContext);
 
   const onSubmitHandler = async (event) => {
     event.preventDefault();
@@ -35,23 +35,33 @@ const Login = () => {
       }
 
       if (response.data.success) {
-        localStorage.setItem("token", response.data.token);
-        localStorage.setItem("userId", response.data.userId);
-        setToken(response.data.token);
+        // localStorage.setItem("token", response.data.token);
+        // // localStorage.setItem("userId", response.data.userId);
+        // setToken(response.data.token);
+        const newToken = response.data.token;
+        localStorage.setItem("token", newToken);
+        setToken(newToken);
+        await loadUserProfileData(newToken);
+        navigate("/");
       } else {
         toast.error(response.data.message);
       }
     } catch (error) {
-      // Custom user-friendly error messages
       if (error.response?.data?.message) {
-        if (error.response.data.message.includes("E11000")) {
-          toast.error("This email is already registered. Please login instead.");
-        } else {
-          toast.error("This email is already registered. Please login instead.");
-        }
+        toast.error(error.response.data.message);
       } else {
         toast.error("Something went wrong. Please try again later.");
       }
+      // Custom user-friendly error messages
+      // if (error.response?.data?.message) {
+      //   if (error.response.data.message.includes("E11000")) {
+      //     toast.error("This email is already registered. Please login instead.");
+      //   } else {
+      //     toast.error("This email is already registered. Please login instead.");
+      //   }
+      // } else {
+      //   toast.error("Something went wrong. Please try again later.");
+      // }
     }
   };
 
@@ -96,7 +106,7 @@ const Login = () => {
           />
         </div>
 
-        <div className="w-full relative">
+        <div className="relative w-full">
           <p>Password</p>
           <input
             onChange={(e) => setPassword(e.target.value)}
@@ -106,14 +116,14 @@ const Login = () => {
             required
           />
           <span
-            className="absolute right-3 top-9 cursor-pointer text-gray-500"
+            className="absolute text-gray-500 cursor-pointer right-3 top-9"
             onClick={() => setShowPassword(!showPassword)}
           >
             {showPassword ? <AiFillEyeInvisible size={20} /> : <AiFillEye size={20} />}
           </span>
         </div>
 
-        <button className="bg-primary text-white w-full py-2 my-2 rounded-md text-base">
+        <button className="w-full py-2 my-2 text-base text-white rounded-md bg-primary">
           {state === "Sign Up" ? "Create account" : "Login"}
         </button>
 
@@ -122,7 +132,7 @@ const Login = () => {
             Already have an account?{" "}
             <span
               onClick={() => setState("Login")}
-              className="text-primary underline cursor-pointer"
+              className="underline cursor-pointer text-primary"
             >
               Login here
             </span>
@@ -132,7 +142,7 @@ const Login = () => {
             Create a new account?{" "}
             <span
               onClick={() => setState("Sign Up")}
-              className="text-primary underline cursor-pointer"
+              className="underline cursor-pointer text-primary"
             >
               Click here
             </span>

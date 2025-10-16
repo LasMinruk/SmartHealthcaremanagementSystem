@@ -31,20 +31,21 @@ const AppContextProvider = (props) => {
   };
 
   // Getting User Profile using API
-  const loadUserProfileData = async () => {
+const loadUserProfileData = async (currentToken) => {
+    if (!currentToken) return; // Do nothing if there's no token
     try {
       const { data } = await axios.get(backendUrl + "/api/user/get-profile", {
-        headers: { token },
+        headers: { token: currentToken }, // Use the provided token
       });
-
       if (data.success) {
         setUserData(data.userData);
       } else {
-        toast.error(data.message);
+        // If profile loading fails, the token is likely invalid.
+        localStorage.removeItem("token");
+        setToken("");
       }
     } catch (error) {
       console.log(error);
-      toast.error(error.message);
     }
   };
 
@@ -53,8 +54,12 @@ const AppContextProvider = (props) => {
   }, []);
 
   useEffect(() => {
+    // This hook correctly loads user data if a token exists when the app starts.
+    async function loadData() {
+        await loadUserProfileData(token);
+    }
     if (token) {
-      loadUserProfileData();
+      loadData();
     }
   }, [token]);
 

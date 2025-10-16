@@ -14,6 +14,7 @@ const AdminContextProvider = (props) => {
     const [appointments, setAppointments] = useState([])
     const [doctors, setDoctors] = useState([])
     const [dashData, setDashData] = useState(false)
+    const [insurances, setInsurances] = useState([])
 
     // Getting all Doctors data from Database using API
     const getAllDoctors = async () => {
@@ -50,6 +51,22 @@ const AdminContextProvider = (props) => {
             toast.error(error.message)
         }
     }
+
+    const getAllInsurances = async () => {
+    try {
+      const { data } = await axios.get(`${backendUrl}/api/user/all-insurence`, {
+        headers: { aToken },
+      });
+      if (data.success) {
+        setInsurances(data.data.reverse());
+      } else {
+        toast.error(data.message);
+      }
+    } catch (error) {
+      toast.error(error.message);
+      console.error(error);
+    }
+  };
 
 
     // Getting all appointment data from Database using API
@@ -120,6 +137,7 @@ const AdminContextProvider = (props) => {
         getAllAppointments,
         getDashData,
         cancelAppointment,
+        getAllInsurances,
         dashData
     }
 

@@ -6,7 +6,6 @@ import { toast } from "react-toastify";
 import { assets } from "../assets/assets";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import { FaFileDownload } from "react-icons/fa";
 
 const MyAppointments = () => {
   const { backendUrl, token } = useContext(AppContext);
@@ -35,26 +34,14 @@ const MyAppointments = () => {
   ];
 
   const months = [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
   ];
 
   // Format Date (20_01_2000 => 20 Jan 2000)
   const slotDateFormat = (slotDate) => {
     const dateArray = slotDate.split("_");
-    return (
-      dateArray[0] + " " + months[Number(dateArray[1])] + " " + dateArray[2]
-    );
+    return dateArray[0] + " " + months[Number(dateArray[1])] + " " + dateArray[2];
   };
 
   // Get User Appointments
@@ -78,9 +65,6 @@ const MyAppointments = () => {
       });
       if (data.success) {
         setConsultationHistory(data.consultations);
-        console.log('Loaded consultation history:', data.consultations);
-      } else {
-        console.error('Failed to load consultation history:', data.message);
       }
     } catch (error) {
       console.error('Error loading consultation history:', error);
@@ -109,11 +93,9 @@ const MyAppointments = () => {
 
   // Check if appointment has consultation record
   const hasConsultationRecord = (appointmentId) => {
-    const hasRecord = consultationHistory.some(consultation => 
+    return consultationHistory.some(consultation => 
       consultation.appointmentId._id === appointmentId
     );
-    console.log(`Checking consultation record for appointment ${appointmentId}:`, hasRecord);
-    return hasRecord;
   };
 
   // Cancel Appointment
@@ -142,14 +124,61 @@ const MyAppointments = () => {
         { appointmentId },
         { headers: { token } }
       );
+
       if (data.success) {
-        window.location.replace(data.session_url);
-      } else toast.error(data.message);
+        // Redirect user to Stripe checkout
+        window.location.href = data.session_url;
+
+        // Optimistically set payment to pending in UI
+        setAppointments(prev =>
+          prev.map(item =>
+            item._id === appointmentId ? { ...item, payment: "pending" } : item
+          )
+        );
+      } else {
+        toast.error(data.message);
+      }
     } catch (error) {
-      console.log(error);
-      toast.error(error.message);
+      console.error("Payment Error:", error);
+      toast.error("Payment failed, please try again.");
     }
   };
+
+  // Verify payment after Stripe redirect
+  useEffect(() => {
+    const verifyPayment = async () => {
+      const pathname = window.location.pathname;
+      if (pathname.includes("/payment-success/")) {
+        const appointmentId = pathname.split("/payment-success/")[1];
+        if (appointmentId) {
+          try {
+            const { data } = await axios.post(
+              `${backendUrl}/api/user/verify-stripe`,
+              { appointmentId, success: "true" },
+              { headers: { token } }
+            );
+
+            if (data.success) {
+              toast.success("Payment Successful!");
+              // Update appointment in UI
+              setAppointments(prev =>
+                prev.map(item =>
+                  item._id === appointmentId ? { ...item, payment: "complete" } : item
+                )
+              );
+            } else {
+              toast.error("Payment verification failed!");
+            }
+          } catch (error) {
+            console.error("Verify Payment Error:", error);
+            toast.error("Payment verification failed!");
+          }
+        }
+      }
+    };
+
+    verifyPayment();
+  }, [backendUrl, token]);
 
   // Export Appointments PDF
   const exportAppointmentsPDF = () => {
@@ -169,13 +198,7 @@ const MyAppointments = () => {
     doc.text(`Generated on: ${date}`, 14, 28);
 
     const tableColumn = [
-      "#",
-      "Doctor Name",
-      "Speciality",
-      "Date",
-      "Time",
-      "Status",
-      "Payment",
+      "#", "Doctor Name", "Speciality", "Date", "Time", "Status", "Payment",
     ];
 
     const tableRows = appointments.map((item, index) => {
@@ -184,7 +207,11 @@ const MyAppointments = () => {
         : item.isCompleted
         ? "Completed"
         : "Active";
-      const paymentStatus = item.payment ? "Paid" : "Pending";
+      const paymentStatus = item.payment === "complete"
+        ? "Paid"
+        : item.payment === "pending"
+        ? "Processing..."
+        : "Pending";
 
       return [
         index + 1,
@@ -210,46 +237,64 @@ const MyAppointments = () => {
   };
 
   // Submit Insurance Form
-  const handleInsuranceSubmit = async (e) => {
-    e.preventDefault();
+const handleInsuranceSubmit = async (e) => {
+  e.preventDefault();
 
-    if (!insuranceCompany || !insuranceId) {
-      toast.error("Please fill all insurance details!");
+  if (!insuranceCompany || !insuranceId) {
+    toast.error("Please fill all insurance details!");
+    return;
+  }
+
+  try {
+    const userId = localStorage.getItem("userId");
+    if (!userId) {
+      toast.error("User ID not found. Please log in again!");
       return;
     }
 
-    try {
-      const userId = localStorage.getItem("userId");
+    const { data } = await axios.post(
+      `${backendUrl}/api/user/insurence`,
+      {
+        userId,
+        appointmentId: selectedAppointment,
+        companyName: insuranceCompany,
+        insuranceId,
+      },
+      { headers: { token } }
+    );
+    
 
-      if (!userId) {
-        toast.error("User ID not found. Please log in again!");
-        return;
+    if (data.success) {
+      toast.success("Insurance claim submitted successfully!");
+      
+      setTimeout(() => {
+       window.location.reload();
+      }, 3000);
+
+      
+      // Optional: update local appointment list or state
+      if (data.updatedAppointment) {
+        console.log("Updated payment status:", data.updatedAppointment.payment);
+        // Example: update state if you have an appointments list
+        setAppointments((prev) =>
+          prev.map((a) =>
+            a._id === selectedAppointment ? data.updatedAppointment : a
+          )
+        );
       }
 
-      const { data } = await axios.post(
-        `${backendUrl}/api/user/insurence`,
-        {
-          userId, // Added userId
-          appointmentId: selectedAppointment,
-          companyName: insuranceCompany,
-          insuranceId,
-        },
-        { headers: { token } }
-      );
-
-      if (data.success) {
-        toast.success("Insurance claim submitted successfully!");
-        setShowInsuranceForm(false);
-        setInsuranceCompany("");
-        setInsuranceId("");
-      } else {
-        toast.error(data.message);
-      }
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to submit insurance claim!");
+      setShowInsuranceForm(false);
+      setInsuranceCompany("");
+      setInsuranceId("");
+    } else {
+      toast.error(data.message);
     }
-  };
+  } catch (error) {
+    console.error("Insurance submission error:", error);
+    toast.error("Failed to submit insurance claim!");
+  }
+};
+
 
   useEffect(() => {
     if (token) {
@@ -265,10 +310,9 @@ const MyAppointments = () => {
         <p className="text-lg font-medium text-gray-600">My Appointments</p>
         <button
           onClick={exportAppointmentsPDF}
-          className="px-3 py-1.5 border border-green-500 rounded-md hover:bg-green-500 hover:text-white transition-all text-sm"
-          title="Download My Appointments Report" 
+          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-teal-600 transition-all"
         >
-          <FaFileDownload className="inline" />
+          Export PDF
         </button>
       </div>
 
@@ -280,11 +324,7 @@ const MyAppointments = () => {
             className="grid grid-cols-[1fr_2fr] gap-4 sm:flex sm:gap-6 py-4 border-b"
           >
             <div>
-              <img
-                className="w-36 bg-[#EAEFFF]"
-                src={item.docData.image}
-                alt=""
-              />
+              <img className="w-36 bg-[#EAEFFF]" src={item.docData.image} alt="" />
             </div>
 
             <div className="flex-1 text-sm text-[#5E5E5E]">
@@ -303,19 +343,16 @@ const MyAppointments = () => {
               </p>
             </div>
 
-            {/* Payment Options */}
-            <div className="flex flex-col gap-2 justify-end text-sm text-center">
-              <div className="flex gap-2">
-                {!item.cancelled && item.payment && !item.isCompleted && (
-                  <button
-                    onClick={() => navigate(`/video/${item._id}`)}
-                    className="text-[#696969] sm:min-w-48 py-2 border rounded hover:bg-primary hover:text-white transition-all"
-                  >
-                    Join Video
-                  </button>
-                )}
-                
-              {/* Prescription View Button */}
+            <div className="flex gap-2">
+              {!item.cancelled && item.payment === "complete" && !item.isCompleted && (
+                <button
+                  onClick={() => navigate(`/video/${item._id}`)}
+                  className="text-[#696969] px-4 py-2 border rounded hover:bg-primary hover:text-white transition-all"
+                >
+                  Join Video
+                </button>
+              )}
+
               {hasConsultationRecord(item._id) && (
                 <button
                   onClick={() => viewPrescription(item._id)}
@@ -329,52 +366,50 @@ const MyAppointments = () => {
                 </button>
               )}
             </div>
-              {!item.cancelled &&
-                !item.payment &&
-                !item.isCompleted &&
-                payment !== item._id && (
-                  <>
-                    <button
-                      onClick={() => setPayment(item._id)}
-                      className="text-[#696969] sm:min-w-48 py-2 border rounded hover:bg-primary hover:text-white transition-all duration-300"
-                    >
-                      Pay Now
-                    </button>
-                  </>
-                )}
 
-              {/* Show Payment Options */}
-              {!item.cancelled &&
-                !item.payment &&
-                !item.isCompleted &&
-                payment === item._id && (
-                  <div className="flex flex-col gap-2">
-                    <button
-                      onClick={() => appointmentStripe(item._id)}
-                      className="text-[#696969] sm:min-w-48 py-2 border rounded hover:bg-gray-100 flex items-center justify-center transition-all"
-                    >
-                      <img
-                        className="max-w-20 max-h-5"
-                        src={assets.stripe_logo}
-                        alt=""
-                      />
-                    </button>
+            {/* Payment Options */}
+            <div className="flex flex-col gap-2 justify-end text-sm text-center">
+              {!item.cancelled && item.payment !== "complete" && !item.isCompleted && payment !== item._id && item.payment !== "pending" && (
+                <>
+                  <button
+                    onClick={() => setPayment(item._id)}
+                    className="text-[#696969] sm:min-w-48 py-2 border rounded hover:bg-primary hover:text-white transition-all duration-300"
+                  >
+                    Pay Now
+                  </button>
+                </>
+              )}
 
-                    <button
-                      onClick={() => {
-                        setShowInsuranceForm(true);
-                        setSelectedAppointment(item._id);
-                      }}
-                      className="text-[#696969] sm:min-w-48 py-2 border rounded hover:bg-blue-100 transition-all"
-                    >
-                      Insurance Claim
-                    </button>
-                  </div>
-                )}
+              {!item.cancelled && item.payment !== "complete" && !item.isCompleted && payment === item._id && (
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={() => appointmentStripe(item._id)}
+                    className="text-[#696969] sm:min-w-48 py-2 border rounded hover:bg-gray-100 flex items-center justify-center transition-all"
+                  >
+                    <img className="max-w-20 max-h-5" src={assets.stripe_logo} alt="" />
+                  </button>
 
-              {item.payment && !item.isCompleted && (
+                  <button
+                    onClick={() => {
+                      setShowInsuranceForm(true);
+                      setSelectedAppointment(item._id);
+                    }}
+                    className="text-[#696969] sm:min-w-48 py-2 border rounded hover:bg-blue-100 transition-all"
+                  >
+                    Insurance Claim
+                  </button>
+                </div>
+              )}
+
+              {item.payment === "complete" && !item.isCompleted && (
                 <button className="sm:min-w-48 py-2 border rounded text-[#696969] bg-[#EAEFFF]">
                   Paid
+                </button>
+              )}
+
+              {item.payment === "pending" && !item.isCompleted && (
+                <button className="sm:min-w-48 py-2 border rounded text-[#696969] bg-blue-200">
+                  Pending
                 </button>
               )}
 

@@ -1,56 +1,100 @@
-import { createContext } from "react";
+import { createContext, useEffect, useState } from "react";
+import { toast } from "react-toastify";
+import axios from "axios";
 
-
-export const AppContext = createContext()
+export const AppContext = createContext();
 
 const AppContextProvider = (props) => {
+  const currencySymbol = "$";
+  const backendUrl =
+    import.meta.env.VITE_BACKEND_URL || "http://localhost:4000";
 
-    const currency = import.meta.env.VITE_CURRENCY
-    const backendUrl = import.meta.env.VITE_BACKEND_URL
+  const [doctors, setDoctors] = useState([]);
+  const [token, setToken] = useState(
+    localStorage.getItem("token") ? localStorage.getItem("token") : ""
+  );
+  const [userData, setUserData] = useState(false);
 
-    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-
-    // Function to format the date eg. ( 20_01_2000 => 20 Jan 2000 )
-    const slotDateFormat = (slotDate) => {
-        const dateArray = slotDate.split('_')
-        return dateArray[0] + " " + months[Number(dateArray[1])] + " " + dateArray[2]
+  // Getting Doctors using API
+  const getDoctosData = async () => {
+    try {
+      const { data } = await axios.get(backendUrl + "/api/doctor/list");
+      if (data.success) {
+        setDoctors(data.doctors);
+      } else {
+        toast.error(data.message);
+      }
+    } catch (error) {
+      console.log(error);
+      toast.error(error.message);
     }
+  };
 
-    // Function to calculate the age eg. ( 20_01_2000 => 24 )
-    const calculateAge = (dob) => {
-        if (!dob) return 'N/A'
-        
-        const today = new Date()
-        const birthDate = new Date(dob)
-        
-        // Check if the date is valid
-        if (isNaN(birthDate.getTime())) {
-            return 'N/A'
-        }
-        
-        let age = today.getFullYear() - birthDate.getFullYear()
-        const monthDiff = today.getMonth() - birthDate.getMonth()
-        
-        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-            age--
-        }
-        
-        return age
+  // Getting User Profile using API
+  const loadUserProfileData = async () => {
+    try {
+      const { data } = await axios.get(backendUrl + "/api/user/get-profile", {
+        headers: { token },
+      });
+
+      if (data.success) {
+        setUserData(data.userData);
+      } else {
+        toast.error(data.message);
+      }
+    } catch (error) {
+      console.log(error);
+      toast.error(error.message);
     }
+  };
 
-    const value = {
-        backendUrl,
-        currency,
-        slotDateFormat,
-        calculateAge,
+  useEffect(() => {
+    getDoctosData();
+  }, []);
+
+  useEffect(() => {
+    if (token) {
+      loadUserProfileData();
     }
+  }, [token]);
 
-    return (
-        <AppContext.Provider value={value}>
-            {props.children}
-        </AppContext.Provider>
-    )
+//   useEffect(() => {
+//     // Prevent auto-redirect if token is invalid/expired
+//     if (token) {
+//       try {
+//         const decoded = JSON.parse(atob(token.split(".")[1]));
+//         const now = Date.now() / 1000;
+//         if (decoded.exp && decoded.exp > now) {
+//           navigate("/");
+//         } else {
+//           localStorage.removeItem("token");
+//           setToken("");
+//         }
+//       } catch {
+//         localStorage.removeItem("token");
+//         setToken("");
+//       }
+//     }
+//   }, [token]);
 
-}
 
-export default AppContextProvider
+  const value = {
+    doctors,
+    getDoctosData,
+    currencySymbol,
+    backendUrl,
+    token,
+    setToken,
+    userData,
+    setUserData,
+    loadUserProfileData,
+  };
+
+  // Note: navigation should be handled within pages, not in context
+
+  return (
+    <AppContext.Provider value={value}>{props.children}</AppContext.Provider>
+  );
+};
+
+export default AppContextProvider;

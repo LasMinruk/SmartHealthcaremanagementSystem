@@ -10,11 +10,17 @@ const appointmentSchema = new mongoose.Schema({
   amount: { type: Number, required: true },
   date: { type: Number, required: true },
   cancelled: { type: Boolean, default: false },
-  payment: { type: Boolean, default: false },
+  payment: {
+    type: String,
+    enum: ["pending", "rejected", "complete"],
+    default: "rejected", 
+    required: true,
+  },
   isCompleted: { type: Boolean, default: false },
 });
 
 const appointmentModel =
   mongoose.models.appointment ||
   mongoose.model("appointment", appointmentSchema);
+
 export default appointmentModel;
