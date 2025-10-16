@@ -4,7 +4,7 @@ import doctorModel from "../models/doctorModel.js";
 import bcrypt from "bcrypt";
 import validator from "validator";
 import { v2 as cloudinary } from "cloudinary";
-import userModel from "../models/userModel.js";
+import patientModel from "../models/patientModel.js";
 
 // API for admin login
 const loginAdmin = async (req, res) => {
@@ -130,7 +130,7 @@ const adminDashboard = async (req, res) => {
     try {
 
         const doctors = await doctorModel.find({})
-        const users = await userModel.find({})
+        const users = await patientModel.find({})
         const appointments = await appointmentModel.find({})
 
         const dashData = {

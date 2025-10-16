@@ -1,6 +1,6 @@
 import labTestModel from "../models/labTestModel.js";
 import prescriptionModel from "../models/prescriptionModel.js";
-import userModel from "../models/userModel.js";
+import patientModel from "../models/patientModel.js";
 import doctorModel from "../models/doctorModel.js";
 import { v2 as cloudinary } from "cloudinary";
 

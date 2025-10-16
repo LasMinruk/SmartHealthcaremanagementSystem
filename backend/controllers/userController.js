@@ -1,12 +1,12 @@
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import validator from "validator";
-import userModel from "../models/userModel.js";
 import doctorModel from "../models/doctorModel.js";
 import appointmentModel from "../models/appointmentModel.js";
 import insurenceModel from "../models/insurenceModel.js";
 import { v2 as cloudinary } from "cloudinary";
 import stripe from "stripe";
+import patientModel from "../models/patientModel.js";
 
 
 // Stripe Payment Gateway Initialize
@@ -39,7 +39,7 @@ const registerUser = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     const userData = { name, email, password: hashedPassword };
-    const newUser = new userModel(userData);
+    const newUser = new patientModel(userData);
     const user = await newUser.save();
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
@@ -55,7 +55,7 @@ const registerUser = async (req, res) => {
 const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
-    const user = await userModel.findOne({ email });
+    const user = await patientModel.findOne({ email });
 
     if (!user) {
       return res.json({ success: false, message: "User does not exist" });
@@ -79,7 +79,7 @@ const loginUser = async (req, res) => {
 const getProfile = async (req, res) => {
   try {
     const { userId } = req.body;
-    const userData = await userModel.findById(userId).select("-password");
+    const userData = await patientModel.findById(userId).select("-password");
     res.json({ success: true, userData });
   } catch (error) {
     console.log(error);
@@ -87,33 +87,37 @@ const getProfile = async (req, res) => {
   }
 };
 
-// API to update user profile
+// API to update user profile data
 const updateProfile = async (req, res) => {
   try {
-    const { userId, name, phone, address, dob, gender } = req.body;
+    let { userId, name, phone, address, dob, gender, bloodClass, weight, height, allergies } = req.body;
     const imageFile = req.file;
 
-    if (!name || !phone || !dob || !gender) {
-      return res.json({ success: false, message: "Data Missing" });
+    if (!name || !phone) {
+      return res.json({ success: false, message: "Name and phone are required" });
     }
 
-    await userModel.findByIdAndUpdate(userId, {
-      name,
-      phone,
-      address: JSON.parse(address),
-      dob,
-      gender,
-    });
+    // Ensure correct types
+    weight = Number(weight) || 0;
+    height = Number(height) || 0;
+    allergies = JSON.parse(allergies || "[]");
+    address = JSON.parse(address || "{}");
 
+    // Prevent enum rejection
+    if (bloodClass === "Not Selected") bloodClass = "";
+
+    const updateData = { name, phone, dob, gender, bloodClass, weight, height, allergies, address };
+
+    // Upload image only if new image is provided
     if (imageFile) {
-      const imageUpload = await cloudinary.uploader.upload(imageFile.path, {
-        resource_type: "image",
-      });
-      const imageURL = imageUpload.secure_url;
-      await userModel.findByIdAndUpdate(userId, { image: imageURL });
+      const imageUpload = await cloudinary.uploader.upload(imageFile.path, { resource_type: "image" });
+      updateData.image = imageUpload.secure_url;
     }
+
+    await patientModel.findByIdAndUpdate(userId, updateData);
 
     res.json({ success: true, message: "Profile Updated" });
+
   } catch (error) {
     console.log(error);
     res.json({ success: false, message: error.message });
@@ -143,7 +147,7 @@ const bookAppointment = async (req, res) => {
       slots_booked[slotDate].push(slotTime);
     }
 
-    const userData = await userModel.findById(userId).select("-password");
+    const userData = await patientModel.findById(userId).select("-password");
     delete docData.slots_booked;
 
     const appointmentData = {
@@ -277,8 +281,10 @@ const verifyStripe = async (req, res) => {
 
 const submitInsurence = async (req, res) => {
   try {
-    const { companyName, insuranceId } = req.body;
+    const { companyName, insuranceId, appointmentId, userId } = req.body;
     //const userId = req.userId; // assuming middleware adds this
+
+    console.log("Request Body:", req.body);
 
     if (!companyName || !insuranceId || !appointmentId) {
       return res.json({ success: false, message: "All fields are required!" });

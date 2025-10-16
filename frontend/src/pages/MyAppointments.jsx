@@ -6,6 +6,7 @@ import { toast } from "react-toastify";
 import { assets } from "../assets/assets";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import { FaFileDownload } from "react-icons/fa";
 
 const MyAppointments = () => {
   const { backendUrl, token } = useContext(AppContext);
@@ -31,14 +32,26 @@ const MyAppointments = () => {
   ];
 
   const months = [
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
   ];
 
   // Format Date (20_01_2000 => 20 Jan 2000)
   const slotDateFormat = (slotDate) => {
     const dateArray = slotDate.split("_");
-    return dateArray[0] + " " + months[Number(dateArray[1])] + " " + dateArray[2];
+    return (
+      dateArray[0] + " " + months[Number(dateArray[1])] + " " + dateArray[2]
+    );
   };
 
   // Get User Appointments
@@ -107,7 +120,13 @@ const MyAppointments = () => {
     doc.text(`Generated on: ${date}`, 14, 28);
 
     const tableColumn = [
-      "#", "Doctor Name", "Speciality", "Date", "Time", "Status", "Payment",
+      "#",
+      "Doctor Name",
+      "Speciality",
+      "Date",
+      "Time",
+      "Status",
+      "Payment",
     ];
 
     const tableRows = appointments.map((item, index) => {
@@ -142,46 +161,46 @@ const MyAppointments = () => {
   };
 
   // Submit Insurance Form
-const handleInsuranceSubmit = async (e) => {
-  e.preventDefault();
+  const handleInsuranceSubmit = async (e) => {
+    e.preventDefault();
 
-  if (!insuranceCompany || !insuranceId) {
-    toast.error("Please fill all insurance details!");
-    return;
-  }
-
-  try {
-    const userId = localStorage.getItem("userId");
-
-    if (!userId) {
-      toast.error("User ID not found. Please log in again!");
+    if (!insuranceCompany || !insuranceId) {
+      toast.error("Please fill all insurance details!");
       return;
     }
 
-    const { data } = await axios.post(
-      `${backendUrl}/api/user/insurence`,
-      {
-        userId, // Added userId
-        appointmentId: selectedAppointment,
-        companyName: insuranceCompany,
-        insuranceId,
-      },
-      { headers: { token } }
-    );
+    try {
+      const userId = localStorage.getItem("userId");
 
-    if (data.success) {
-      toast.success("Insurance claim submitted successfully!");
-      setShowInsuranceForm(false);
-      setInsuranceCompany("");
-      setInsuranceId("");
-    } else {
-      toast.error(data.message);
+      if (!userId) {
+        toast.error("User ID not found. Please log in again!");
+        return;
+      }
+
+      const { data } = await axios.post(
+        `${backendUrl}/api/user/insurence`,
+        {
+          userId, // Added userId
+          appointmentId: selectedAppointment,
+          companyName: insuranceCompany,
+          insuranceId,
+        },
+        { headers: { token } }
+      );
+
+      if (data.success) {
+        toast.success("Insurance claim submitted successfully!");
+        setShowInsuranceForm(false);
+        setInsuranceCompany("");
+        setInsuranceId("");
+      } else {
+        toast.error(data.message);
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to submit insurance claim!");
     }
-  } catch (error) {
-    console.error(error);
-    toast.error("Failed to submit insurance claim!");
-  }
-};
+  };
 
   useEffect(() => {
     if (token) getUserAppointments();
@@ -194,9 +213,10 @@ const handleInsuranceSubmit = async (e) => {
         <p className="text-lg font-medium text-gray-600">My Appointments</p>
         <button
           onClick={exportAppointmentsPDF}
-          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-teal-600 transition-all"
+          className="px-3 py-1.5 border border-green-500 rounded-md hover:bg-green-500 hover:text-white transition-all text-sm"
+          title="Download My Appointments Report" 
         >
-          Export PDF
+          <FaFileDownload className="inline" />
         </button>
       </div>
 
@@ -208,7 +228,11 @@ const handleInsuranceSubmit = async (e) => {
             className="grid grid-cols-[1fr_2fr] gap-4 sm:flex sm:gap-6 py-4 border-b"
           >
             <div>
-              <img className="w-36 bg-[#EAEFFF]" src={item.docData.image} alt="" />
+              <img
+                className="w-36 bg-[#EAEFFF]"
+                src={item.docData.image}
+                alt=""
+              />
             </div>
 
             <div className="flex-1 text-sm text-[#5E5E5E]">
@@ -227,51 +251,60 @@ const handleInsuranceSubmit = async (e) => {
               </p>
             </div>
 
-            <div className="flex gap-2">
-              {!item.cancelled && item.payment && !item.isCompleted && (
-                <button
-                  onClick={() => navigate(`/video/${item._id}`)}
-                  className="text-[#696969] px-4 py-2 border rounded hover:bg-primary hover:text-white transition-all"
-                >
-                  Join Video
-                </button>
-              )}
-            </div>
-
             {/* Payment Options */}
             <div className="flex flex-col gap-2 justify-end text-sm text-center">
-              {!item.cancelled && !item.payment && !item.isCompleted && payment !== item._id && (
-                <>
+              <div className="flex gap-2">
+                {!item.cancelled && item.payment && !item.isCompleted && (
                   <button
-                    onClick={() => setPayment(item._id)}
-                    className="text-[#696969] sm:min-w-48 py-2 border rounded hover:bg-primary hover:text-white transition-all duration-300"
+                    onClick={() => navigate(`/video/${item._id}`)}
+                    className="text-[#696969] sm:min-w-48 py-2 border rounded hover:bg-primary hover:text-white transition-all"
                   >
-                    Pay Now
+                    Join Video
                   </button>
-                </>
-              )}
+                )}
+              </div>
+              {!item.cancelled &&
+                !item.payment &&
+                !item.isCompleted &&
+                payment !== item._id && (
+                  <>
+                    <button
+                      onClick={() => setPayment(item._id)}
+                      className="text-[#696969] sm:min-w-48 py-2 border rounded hover:bg-primary hover:text-white transition-all duration-300"
+                    >
+                      Pay Now
+                    </button>
+                  </>
+                )}
 
               {/* Show Payment Options */}
-              {!item.cancelled && !item.payment && !item.isCompleted && payment === item._id && (
-                <div className="flex flex-col gap-2">
-                  <button
-                    onClick={() => appointmentStripe(item._id)}
-                    className="text-[#696969] sm:min-w-48 py-2 border rounded hover:bg-gray-100 flex items-center justify-center transition-all"
-                  >
-                    <img className="max-w-20 max-h-5" src={assets.stripe_logo} alt="" />
-                  </button>
+              {!item.cancelled &&
+                !item.payment &&
+                !item.isCompleted &&
+                payment === item._id && (
+                  <div className="flex flex-col gap-2">
+                    <button
+                      onClick={() => appointmentStripe(item._id)}
+                      className="text-[#696969] sm:min-w-48 py-2 border rounded hover:bg-gray-100 flex items-center justify-center transition-all"
+                    >
+                      <img
+                        className="max-w-20 max-h-5"
+                        src={assets.stripe_logo}
+                        alt=""
+                      />
+                    </button>
 
-                  <button
-                    onClick={() => {
-                      setShowInsuranceForm(true);
-                      setSelectedAppointment(item._id);
-                    }}
-                    className="text-[#696969] sm:min-w-48 py-2 border rounded hover:bg-blue-100 transition-all"
-                  >
-                    Insurance Claim
-                  </button>
-                </div>
-              )}
+                    <button
+                      onClick={() => {
+                        setShowInsuranceForm(true);
+                        setSelectedAppointment(item._id);
+                      }}
+                      className="text-[#696969] sm:min-w-48 py-2 border rounded hover:bg-blue-100 transition-all"
+                    >
+                      Insurance Claim
+                    </button>
+                  </div>
+                )}
 
               {item.payment && !item.isCompleted && (
                 <button className="sm:min-w-48 py-2 border rounded text-[#696969] bg-[#EAEFFF]">
