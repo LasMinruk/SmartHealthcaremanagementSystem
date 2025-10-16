@@ -10,6 +10,8 @@ const DoctorContextProvider = (props) => {
     const backendUrl = import.meta.env.VITE_BACKEND_URL
 
     const [dToken, setDToken] = useState(localStorage.getItem('dToken') ? localStorage.getItem('dToken') : '')
+    const [doctorId, setDoctorId] = useState(localStorage.getItem('doctorId') ? localStorage.getItem('doctorId') : '')
+    const [dName, setDName] = useState(localStorage.getItem('dName') ? localStorage.getItem('dName') : '')
     const [appointments, setAppointments] = useState([])
     const [dashData, setDashData] = useState(false)
     const [profileData, setProfileData] = useState(false)
@@ -112,7 +114,10 @@ const DoctorContextProvider = (props) => {
     }
 
     const value = {
-        dToken, setDToken, backendUrl,
+        dToken, setDToken, 
+        doctorId, setDoctorId,
+        dName, setDName,
+        backendUrl,
         appointments,
         getAppointments,
         cancelAppointment,

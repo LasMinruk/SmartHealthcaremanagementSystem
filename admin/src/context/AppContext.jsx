@@ -18,9 +18,23 @@ const AppContextProvider = (props) => {
 
     // Function to calculate the age eg. ( 20_01_2000 => 24 )
     const calculateAge = (dob) => {
+        if (!dob) return 'N/A'
+        
         const today = new Date()
         const birthDate = new Date(dob)
+        
+        // Check if the date is valid
+        if (isNaN(birthDate.getTime())) {
+            return 'N/A'
+        }
+        
         let age = today.getFullYear() - birthDate.getFullYear()
+        const monthDiff = today.getMonth() - birthDate.getMonth()
+        
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+            age--
+        }
+        
         return age
     }
 

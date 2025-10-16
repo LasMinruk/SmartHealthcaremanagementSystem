@@ -16,6 +16,7 @@ import Verify from "./pages/Verify";
 import VideoCall from "./pages/VideoCall";
 import Chatbot from "./components/Chatbot";
 import PatientLabPharmacyPage from "./pages/PatientLabPharmacyPage";
+import ConsultationHistory from "./pages/ConsultationHistory";
 import NotFound from "./pages/NotFound";
 
 const App = () => {
@@ -36,6 +37,7 @@ const App = () => {
         <Route path="/verify" element={<Verify />} />
         <Route path="/video/:appointmentId" element={<VideoCall />} />
         <Route path="/labtest-pharmacy" element={<PatientLabPharmacyPage />} />
+        <Route path="/consultation-history" element={<ConsultationHistory />} />
 
         <Route path='*' element={<NotFound />} />
       </Routes>
