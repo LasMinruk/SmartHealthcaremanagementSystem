@@ -11,7 +11,6 @@ import stripe from "stripe";
 import patientModel from "../models/patientModel.js";
 import { sendAppointmentConfirmationEmail, sendAppointmentCancellationEmail } from "../services/emailService.js";
 
-
 // Stripe Payment Gateway Initialize
 const stripeInstance = new stripe(process.env.STRIPE_SECRET_KEY);
 
