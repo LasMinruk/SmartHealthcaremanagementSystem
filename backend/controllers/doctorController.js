@@ -8,6 +8,8 @@ import {
   generatePDFFilename,
 } from "../services/pdfService.js";
 import patientModel from "../models/patientModel.js";
+import labTestModel from "../models/labTestModel.js";
+import prescriptionModel from "../models/prescriptionModel.js";
 
 // API for doctor Login
 const loginDoctor = async (req, res) => {
@@ -405,10 +407,14 @@ const getPatientInfoForConsultation = async (req, res) => {
   try {
     const { appointmentId } = req.body;
 
+    console.log("Fetching patient info for appointment:", appointmentId);
+
     const appointment = await appointmentModel.findById(appointmentId);
     if (!appointment) {
       return res.json({ success: false, message: "Appointment not found" });
     }
+
+    console.log("Found appointment:", appointment);
 
     const patient = await patientModel
       .findById(appointment.userId)
@@ -423,9 +429,9 @@ const getPatientInfoForConsultation = async (req, res) => {
         phone: patient.phone,
         email: patient.email,
         address: patient.address,
-        bloodType: "Not specified", // You can add this to user model if needed
-        allergies: "None", // You can add this to user model if needed
-        medicalHistory: "No previous records", // You can add this to user model if needed
+        bloodType: "Not specified", 
+        allergies: "None",
+        medicalHistory: "No previous records",
       },
     });
   } catch (error) {
@@ -569,6 +575,57 @@ const downloadConsultationReport = async (req, res) => {
   }
 };
 
+const getUserMedicalRecord = async (req, res) => {
+  try {
+    const { patientId } = req.body;
+    console.log(patientId)
+    if (!patientId) {
+      return res.status(400).json({ success: false, message: "Missing patientId" });
+    }
+
+    // Consultations for this patient (most recent first). Populate doctor & appointment for context.
+    const consultations = await consultationModel
+      .find({ patientId })
+      .sort({ createdAt: -1 })
+      .populate("doctorId", "name speciality")
+      .populate("appointmentId", "slotDate slotTime")
+      .lean();
+
+    // Lab tests for this patient
+    const labTests = await labTestModel
+      .find({ patientId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Prescriptions for this patient
+    const prescriptions = await prescriptionModel
+      .find({ patientId })
+      .sort({ issuedDate: -1 })
+      .lean();
+
+    // Basic patient profile (exclude password)
+    const patient = await patientModel.findById(patientId).select("-password").lean();
+    
+    console.log("Consultation", consultations);
+    console.log("labTests", labTests);
+    console.log("prescriptions", prescriptions);
+    console.log("patientInfo", patient);
+
+    return res.json({
+      success: true,
+      data: {
+        consultations,
+        labTests,
+        prescriptions,
+        patientInfo: patient || null,
+      },
+    });
+  } catch (error) {
+    console.error("getUserMedicalRecord error:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 export {
   loginDoctor,
   appointmentsDoctor,
@@ -585,4 +642,5 @@ export {
   completeConsultation,
   getDoctorConsultations,
   downloadConsultationReport,
+  getUserMedicalRecord,
 };

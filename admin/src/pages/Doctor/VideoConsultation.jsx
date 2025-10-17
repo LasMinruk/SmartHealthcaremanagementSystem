@@ -65,6 +65,7 @@ const VideoConsultation = () => {
             } else {
                 toast.error(data.message)
             }
+            console.log('Patient info data:', data)
         } catch (error) {
             console.error('Error loading patient info:', error)
             toast.error('Failed to load patient information')

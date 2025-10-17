@@ -14,7 +14,8 @@ import {
     getPatientInfoForConsultation,
     completeConsultation,
     getDoctorConsultations,
-    downloadConsultationReport
+    downloadConsultationReport,
+    getUserMedicalRecord
 } from '../controllers/doctorController.js';
 import authDoctor from '../middleware/authDoctor.js';
 const doctorRouter = express.Router();
@@ -28,6 +29,9 @@ doctorRouter.post("/complete-appointment", authDoctor, appointmentComplete)
 doctorRouter.get("/dashboard", authDoctor, doctorDashboard)
 doctorRouter.get("/profile", authDoctor, doctorProfile)
 doctorRouter.post("/update-profile", authDoctor, updateDoctorProfile)
+
+//get all the medical records of a user
+doctorRouter.post("/get-user-medical-record", authDoctor, getUserMedicalRecord)
 
 // Consultation and notes routes
 doctorRouter.post("/save-consultation-notes", authDoctor, saveConsultationNotes)
