@@ -9,6 +9,7 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { AdminContext } from "../../context/AdminContext";
 import { LabPharmacyContext } from "../../context/LabPharmacyContext";
+import { CiSearch } from "react-icons/ci";
 
 const AdminLaboratoryPharmacy = () => {
   const { aToken } = useContext(AdminContext);
@@ -166,7 +167,7 @@ const AdminLaboratoryPharmacy = () => {
   };
 
   return (
-    <div className="p-6">
+    <div className="p-6 m-auto">
       <header className="mb-6 text-center border-b pb-3">
         <h1 className="text-2xl font-semibold text-gray-800">
           Laboratory & Pharmacy Management
@@ -187,7 +188,9 @@ const AdminLaboratoryPharmacy = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full px-4 py-2 rounded-full shadow-md border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all placeholder-gray-400"
             />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+              <CiSearch size={20} />
+            </span>
           </div>
           <button
             onClick={exportPDF}
@@ -243,7 +246,7 @@ const AdminLaboratoryPharmacy = () => {
 
       {/* Patient Detail Tabs */}
       {selectedPatient && (
-        <div className="mt-6 lg:w-[935px]">
+        <div className="mt-6 lg:w-[960px] m-auto">
           <button
             onClick={() => setSelectedPatient(null)}
             className="text-sm mb-4 text-blue-600 hover:underline"

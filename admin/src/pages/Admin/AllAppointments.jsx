@@ -4,6 +4,7 @@ import { AdminContext } from '../../context/AdminContext';
 import { AppContext } from '../../context/AppContext';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { CiSearch } from "react-icons/ci";
 
 const AllAppointments = () => {
   const { aToken, appointments, cancelAppointment, getAllAppointments } = useContext(AdminContext);
@@ -26,7 +27,7 @@ const AllAppointments = () => {
     );
   }, [searchTerm, appointments]);
 
-  // 🧾 Export PDF
+  // Export PDF
   const exportPDF = () => {
     if (!filteredAppointments || filteredAppointments.length === 0) {
       alert('No appointments to export!');
@@ -79,7 +80,7 @@ const AllAppointments = () => {
             className='w-full px-4 py-2 rounded-full shadow-md border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all placeholder-gray-400'
           />
           <span className='absolute right-3 top-1/2 -translate-y-1/2 text-gray-400'>
-            🔍
+            <CiSearch size={20} />
           </span>
         </div>
 

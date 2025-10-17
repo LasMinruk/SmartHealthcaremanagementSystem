@@ -20,6 +20,7 @@ import {
 import upload from "../middleware/multer.js";
 import authUser from "../middleware/authUser.js";
 const userRouter = express.Router();
+import authAdmin from "../middleware/authAdmin.js";
 
 userRouter.post("/register", registerUser);
 userRouter.post("/login", loginUser);
@@ -37,7 +38,7 @@ userRouter.post("/cancel-appointment", authUser, cancelAppointment);
 userRouter.post("/payment-stripe", authUser, paymentStripe);
 userRouter.post("/verifyStripe", authUser, verifyStripe);
 userRouter.post("/insurence", authUser, submitInsurence);
-userRouter.get("/all-insurence", authUser, getAllInsurances);
+userRouter.get("/all-insurence", authAdmin, getAllInsurances);
 userRouter.put("/update-payment/:id", updateAppointmentPayment);
 userRouter.get("/consultation-history", authUser, getConsultationHistory);
 userRouter.post("/consultation-report", authUser, getPatientConsultationReport);

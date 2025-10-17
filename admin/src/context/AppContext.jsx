@@ -30,6 +30,34 @@ const AppContextProvider = (props) => {
     }
   };
 
+   const calculateAge = (dob) => {
+        if (!dob) return 'N/A'
+        
+        const today = new Date()
+        const birthDate = new Date(dob)
+        
+        // Check if the date is valid
+        if (isNaN(birthDate.getTime())) {
+            return 'N/A'
+        }
+        
+        let age = today.getFullYear() - birthDate.getFullYear()
+        const monthDiff = today.getMonth() - birthDate.getMonth()
+        
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+            age--
+        }
+        
+        return age
+    }
+
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+  const slotDateFormat = (slotDate) => {
+        const dateArray = slotDate.split('_')
+        return dateArray[0] + " " + months[Number(dateArray[1])] + " " + dateArray[2]
+    }
+
   // Getting User Profile using API
   const loadUserProfileData = async () => {
     try {
@@ -87,7 +115,9 @@ const AppContextProvider = (props) => {
     setToken,
     userData,
     setUserData,
+    slotDateFormat,
     loadUserProfileData,
+    calculateAge
   };
 
   // Note: navigation should be handled within pages, not in context

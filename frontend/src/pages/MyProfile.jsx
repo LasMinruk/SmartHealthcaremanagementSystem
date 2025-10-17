@@ -8,6 +8,7 @@ import autoTable from "jspdf-autotable";
 import { useNavigate } from "react-router-dom";
 import { FaFileDownload } from "react-icons/fa";
 import { LuImageUp } from "react-icons/lu";
+import QrCodeGenerator from "../components/QrCodeGenerator";
 
 const BLOOD_TYPES = [
   "Not Selected",
@@ -212,6 +213,7 @@ const MyProfile = () => {
 
   return (
     <div className="w-full max-w-4xl mx-auto p-6">
+      {token && <QrCodeGenerator />}
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>

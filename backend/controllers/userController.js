@@ -159,7 +159,7 @@ const updateProfile = async (req, res) => {
   }
 };
 
-// API to book appointment
+// API to book appointment - FIXED FOR GOVERNMENT DOCTORS
 const bookAppointment = async (req, res) => {
   try {
     const { userId, docId, slotDate, slotTime } = req.body;
@@ -185,15 +185,20 @@ const bookAppointment = async (req, res) => {
     const userData = await patientModel.findById(userId).select("-password");
     delete docData.slots_booked;
 
+    // CRITICAL FIX: Set amount based on doctor type
+    const appointmentAmount = docData.type === "Government" ? 0 : docData.fees;
+
     const appointmentData = {
       userId,
       docId,
       userData,
       docData,
-      amount: docData.fees,
+      amount: appointmentAmount,
       slotTime,
       slotDate,
       date: Date.now(),
+      // Auto-complete payment for government doctors
+      payment: docData.type === "Government" ? "complete" : undefined,
     };
 
     const newAppointment = new appointmentModel(appointmentData);
@@ -203,15 +208,22 @@ const bookAppointment = async (req, res) => {
 
     // Send appointment confirmation email
     try {
-      const emailResult = await sendAppointmentConfirmationEmail(appointmentData);
+      const emailResult = await sendAppointmentConfirmationEmail(
+        appointmentData
+      );
       if (emailResult.success) {
-        console.log('Appointment confirmation email sent successfully');
+        console.log("Appointment confirmation email sent successfully");
       } else {
-        console.error('Failed to send appointment confirmation email:', emailResult.error);
+        console.error(
+          "Failed to send appointment confirmation email:",
+          emailResult.error
+        );
       }
     } catch (emailError) {
-      console.error('Error sending appointment confirmation email:', emailError);
-      // Don't fail the appointment booking if email fails
+      console.error(
+        "Error sending appointment confirmation email:",
+        emailError
+      );
     }
 
     res.json({ success: true, message: "Appointment Booked" });
@@ -262,7 +274,6 @@ const cancelAppointment = async (req, res) => {
         "Error sending appointment cancellation email:",
         emailError
       );
-      // Don't fail the appointment cancellation if email fails
     }
 
     res.json({ success: true, message: "Appointment Cancelled" });
@@ -284,7 +295,7 @@ const listAppointment = async (req, res) => {
   }
 };
 
-// ✅ Stripe Payment (only)
+// Stripe Payment (only for private doctors)
 const paymentStripe = async (req, res) => {
   try {
     const { appointmentId } = req.body;
@@ -296,6 +307,14 @@ const paymentStripe = async (req, res) => {
       return res.json({
         success: false,
         message: "Appointment cancelled or not found",
+      });
+    }
+
+    // Check if it's a government doctor (amount = 0)
+    if (appointmentData.amount === 0) {
+      return res.json({
+        success: false,
+        message: "This is a free government consultation, no payment required",
       });
     }
 
@@ -339,21 +358,26 @@ const verifyStripe = async (req, res) => {
 
     if (success === "true") {
       await appointmentModel.findByIdAndUpdate(appointmentId, {
-        payment: true,
+        payment: "complete",
       });
       return res.json({ success: true, message: "Payment Successful" });
     }
 
-    res.json({ success: false, message: "Payment Failed" });
+    await appointmentModel.findByIdAndUpdate(appointmentId, {
+      payment: "rejected",
+    });
+
+    return res.json({ success: false, message: "Payment Failed" });
   } catch (error) {
-    console.log(error);
-    res.json({ success: false, message: error.message });
+    console.error("Verify Stripe Error:", error);
+    return res.json({ success: false, message: error.message });
   }
 };
 
 const submitInsurence = async (req, res) => {
   try {
-    const { userId, appointmentId, companyName, insuranceId } = req.body;
+    const { appointmentId, companyName, insuranceId } = req.body;
+    const userId = req.body.userId; // This is set by authUser middleware
 
     if (!companyName || !insuranceId || !appointmentId) {
       return res.json({ success: false, message: "All fields are required!" });
@@ -363,6 +387,15 @@ const submitInsurence = async (req, res) => {
     const appointment = await appointmentModel.findById(appointmentId);
     if (!appointment) {
       return res.json({ success: false, message: "Appointment not found!" });
+    }
+
+    // Check if it's a government doctor (free consultation)
+    if (appointment.amount === 0) {
+      return res.json({
+        success: false,
+        message:
+          "Insurance claims cannot be made for free government consultations!",
+      });
     }
 
     // Create insurance claim
@@ -379,14 +412,18 @@ const submitInsurence = async (req, res) => {
     const updatedAppointment = await appointmentModel.findByIdAndUpdate(
       appointmentId,
       { payment: "pending" },
-      { new: true } // return updated document
+      { new: true }
     );
 
-    console.log("Payment status updated to pending:", updatedAppointment.payment);
+    console.log(
+      "Payment status updated to pending:",
+      updatedAppointment.payment
+    );
 
     return res.json({
       success: true,
-      message: "Insurance claim submitted successfully! Payment set to pending.",
+      message:
+        "Insurance claim submitted successfully! Payment set to pending.",
       data: newClaim,
       updatedAppointment,
     });
@@ -396,12 +433,9 @@ const submitInsurence = async (req, res) => {
   }
 };
 
-
-
-
 const getAllInsurances = async (req, res) => {
   try {
-    const insurances = await insurenceModel.find(); // simple fetch all
+    const insurances = await insurenceModel.find();
 
     res.status(200).json({
       success: true,
@@ -416,6 +450,7 @@ const getAllInsurances = async (req, res) => {
     });
   }
 };
+
 const updateAppointmentPayment = async (req, res) => {
   try {
     const { id } = req.params;
@@ -423,7 +458,9 @@ const updateAppointmentPayment = async (req, res) => {
 
     const validStatuses = ["pending", "complete", "rejected"];
     if (!validStatuses.includes(payment)) {
-      return res.status(400).json({ success: false, message: "Invalid payment status" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid payment status" });
     }
 
     const appointment = await appointmentModel.findByIdAndUpdate(
@@ -433,7 +470,9 @@ const updateAppointmentPayment = async (req, res) => {
     );
 
     if (!appointment) {
-      return res.status(404).json({ success: false, message: "Appointment not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Appointment not found" });
     }
 
     res.status(200).json({
@@ -443,7 +482,9 @@ const updateAppointmentPayment = async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ success: false, message: "Error updating payment status" });
+    res
+      .status(500)
+      .json({ success: false, message: "Error updating payment status" });
   }
 };
 
@@ -472,7 +513,7 @@ const getConsultationHistory = async (req, res) => {
 const getPatientConsultationReport = async (req, res) => {
   try {
     const { appointmentId } = req.body;
-    const userId = req.userId; // Get from token
+    const userId = req.userId;
 
     console.log("Getting consultation report for:", { appointmentId, userId });
 
@@ -575,12 +616,10 @@ const getQrCodeData = async (req, res) => {
     res.json({ success: true, data: qrData });
   } catch (error) {
     console.log(error);
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Server error while fetching QR code data",
-      });
+    res.status(500).json({
+      success: false,
+      message: "Server error while fetching QR code data",
+    });
   }
 };
 
@@ -606,12 +645,10 @@ const updateQrCodeData = async (req, res) => {
     });
   } catch (error) {
     console.log(error);
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Server error while updating QR code data",
-      });
+    res.status(500).json({
+      success: false,
+      message: "Server error while updating QR code data",
+    });
   }
 };
 
