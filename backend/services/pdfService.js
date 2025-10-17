@@ -8,92 +8,121 @@ export const generateConsultationReportPDF = (consultationData) => {
   // Create new PDF document
   const doc = new jsPDF();
   
-  // Set up colors
-  const primaryColor = [22, 160, 133]; // Teal color
+  // Set up colors - matching prescription format
+  const primaryColor = [44, 90, 160]; // Blue color like prescription
   const secondaryColor = [52, 73, 94]; // Dark gray
-  const lightGray = [245, 245, 245];
+  const lightGray = [248, 249, 250]; // Light gray background
   
-  // Header
-  doc.setFillColor(...primaryColor);
-  doc.rect(0, 0, 210, 30, 'F');
+  // Header with border line
+  doc.setDrawColor(...primaryColor);
+  doc.setLineWidth(3);
+  doc.line(15, 35, 195, 35);
   
-  // Title
-  doc.setTextColor(255, 255, 255);
+  // Clinic name
+  doc.setTextColor(...primaryColor);
   doc.setFontSize(20);
   doc.setFont('helvetica', 'bold');
-  doc.text('CONSULTATION REPORT', 105, 20, { align: 'center' });
+  doc.text('Smart Healthcare Management System', 105, 25, { align: 'center' });
   
-  // Subtitle
+  // Tagline
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.text('Smart Healthcare Management System', 105, 26, { align: 'center' });
+  doc.setTextColor(102, 102, 102);
+  doc.text('Your Health, Our Priority', 105, 30, { align: 'center' });
+  
+  // Prescription title - moved down to avoid overlap
+  doc.setTextColor(...primaryColor);
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text('MEDICAL PRESCRIPTION', 105, 45, { align: 'center' });
   
   // Reset text color
   doc.setTextColor(0, 0, 0);
   
-  let yPosition = 45;
+  let yPosition = 55;
   
-  // Report Information
+  // Date information (top right)
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Date: ${new Date().toLocaleDateString()}`, 195, yPosition, { align: 'right' });
+  yPosition += 15;
+  
+  // Patient and Doctor Information in two columns
+  const leftX = 15;
+  const rightX = 110;
+  const boxHeight = 45;
+  
+  // Patient Information Box (Left)
+  doc.setFillColor(...lightGray);
+  doc.rect(leftX, yPosition, 90, boxHeight, 'F');
+  doc.setDrawColor(200, 200, 200);
+  doc.rect(leftX, yPosition, 90, boxHeight, 'S');
+  
+  doc.setTextColor(...primaryColor);
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
-  doc.text('Report Information', 15, yPosition);
-  yPosition += 10;
+  doc.text('Patient Information', leftX + 5, yPosition + 8);
   
+  doc.setTextColor(0, 0, 0);
+  doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
-  doc.text(`Report Date: ${new Date().toLocaleDateString()}`, 15, yPosition);
-  doc.text(`Report Time: ${new Date().toLocaleTimeString()}`, 15, yPosition + 5);
-  doc.text(`Consultation ID: ${consultation._id}`, 15, yPosition + 10);
-  yPosition += 20;
+  doc.text(`Name: ${patient.name}`, leftX + 5, yPosition + 15);
+  doc.text(`Age: ${patient.age} years`, leftX + 5, yPosition + 20);
+  doc.text(`Gender: ${patient.gender}`, leftX + 5, yPosition + 25);
+  doc.text(`Phone: ${patient.phone}`, leftX + 5, yPosition + 30);
+  doc.text(`Email: ${patient.email}`, leftX + 5, yPosition + 35);
   
-  // Doctor Information
-  doc.setFont('helvetica', 'bold');
+  // Doctor Information Box (Right)
+  doc.setFillColor(...lightGray);
+  doc.rect(rightX, yPosition, 90, boxHeight, 'F');
+  doc.setDrawColor(200, 200, 200);
+  doc.rect(rightX, yPosition, 90, boxHeight, 'S');
+  
+  doc.setTextColor(...primaryColor);
   doc.setFontSize(12);
-  doc.text('Doctor Information', 15, yPosition);
-  yPosition += 10;
+  doc.setFont('helvetica', 'bold');
+  doc.text('Doctor Information', rightX + 5, yPosition + 8);
   
+  doc.setTextColor(0, 0, 0);
+  doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
-  doc.text(`Name: Dr. ${doctor.name}`, 15, yPosition);
-  doc.text(`Speciality: ${doctor.speciality}`, 15, yPosition + 5);
-  doc.text(`Degree: ${doctor.degree}`, 15, yPosition + 10);
-  doc.text(`Experience: ${doctor.experience}`, 15, yPosition + 15);
+  doc.text(`Name: Dr. ${doctor.name}`, rightX + 5, yPosition + 15);
+  doc.text(`Speciality: ${doctor.speciality}`, rightX + 5, yPosition + 20);
+  doc.text(`Degree: ${doctor.degree}`, rightX + 5, yPosition + 25);
+  doc.text(`Experience: ${doctor.experience}`, rightX + 5, yPosition + 30);
   if (doctor.address) {
-    doc.text(`Address: ${doctor.address.line1 || ''}`, 15, yPosition + 20);
+    doc.text(`Address: ${doctor.address.line1 || ''}`, rightX + 5, yPosition + 35);
   }
-  yPosition += 30;
   
-  // Patient Information
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
-  doc.text('Patient Information', 15, yPosition);
-  yPosition += 10;
+  yPosition += boxHeight + 20;
   
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
-  doc.text(`Name: ${patient.name}`, 15, yPosition);
-  doc.text(`Age: ${patient.age} years`, 15, yPosition + 5);
-  doc.text(`Gender: ${patient.gender}`, 15, yPosition + 10);
-  doc.text(`Phone: ${patient.phone}`, 15, yPosition + 15);
-  doc.text(`Email: ${patient.email}`, 15, yPosition + 20);
-  if (patient.address) {
-    doc.text(`Address: ${patient.address.line1 || ''}`, 15, yPosition + 25);
+  // Consultation Notes Section
+  if (consultation.consultationNotes) {
+    doc.setTextColor(...primaryColor);
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Consultation Notes', 15, yPosition);
+    
+    // Section underline
+    doc.setDrawColor(233, 236, 239);
+    doc.setLineWidth(2);
+    doc.line(15, yPosition + 2, 195, yPosition + 2);
+    yPosition += 15;
+    
+    // Notes box
+    doc.setFillColor(...lightGray);
+    doc.rect(15, yPosition, 180, 25, 'F');
+    doc.setDrawColor(...primaryColor);
+    doc.setLineWidth(4);
+    doc.line(15, yPosition, 15, yPosition + 25);
+    
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    const notesLines = doc.splitTextToSize(consultation.consultationNotes, 170);
+    doc.text(notesLines, 20, yPosition + 8);
+    yPosition += 35;
   }
-  yPosition += 35;
-  
-  // Appointment Details
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
-  doc.text('Appointment Details', 15, yPosition);
-  yPosition += 10;
-  
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
-  doc.text(`Date: ${formatAppointmentDate(appointment.slotDate)}`, 15, yPosition);
-  doc.text(`Time: ${appointment.slotTime}`, 15, yPosition + 5);
-  doc.text(`Consultation Fee: ₹${appointment.amount}`, 15, yPosition + 10);
-  doc.text(`Payment Status: ${appointment.payment ? 'Paid' : 'Pending'}`, 15, yPosition + 15);
-  yPosition += 25;
   
   // Check if we need a new page
   if (yPosition > 250) {
@@ -101,18 +130,32 @@ export const generateConsultationReportPDF = (consultationData) => {
     yPosition = 20;
   }
   
-  // Diagnosis
+  // Diagnosis Section
   if (consultation.diagnosis) {
+    doc.setTextColor(...primaryColor);
+    doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
     doc.text('Diagnosis', 15, yPosition);
-    yPosition += 10;
     
-    doc.setFont('helvetica', 'normal');
+    // Section underline
+    doc.setDrawColor(233, 236, 239);
+    doc.setLineWidth(2);
+    doc.line(15, yPosition + 2, 195, yPosition + 2);
+    yPosition += 15;
+    
+    // Diagnosis box
+    doc.setFillColor(...lightGray);
+    doc.rect(15, yPosition, 180, 20, 'F');
+    doc.setDrawColor(...primaryColor);
+    doc.setLineWidth(4);
+    doc.line(15, yPosition, 15, yPosition + 20);
+    
+    doc.setTextColor(0, 0, 0);
     doc.setFontSize(10);
-    const diagnosisLines = doc.splitTextToSize(consultation.diagnosis, 180);
-    doc.text(diagnosisLines, 15, yPosition);
-    yPosition += diagnosisLines.length * 5 + 10;
+    doc.setFont('helvetica', 'normal');
+    const diagnosisLines = doc.splitTextToSize(consultation.diagnosis, 170);
+    doc.text(diagnosisLines, 20, yPosition + 8);
+    yPosition += 30;
   }
   
   // Symptoms
@@ -177,12 +220,18 @@ export const generateConsultationReportPDF = (consultationData) => {
     yPosition = 20;
   }
   
-  // Medications
+  // Prescribed Medications Section
   if (consultation.medications && consultation.medications.length > 0) {
+    doc.setTextColor(...primaryColor);
+    doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
     doc.text('Prescribed Medications', 15, yPosition);
-    yPosition += 10;
+    
+    // Section underline
+    doc.setDrawColor(233, 236, 239);
+    doc.setLineWidth(2);
+    doc.line(15, yPosition + 2, 195, yPosition + 2);
+    yPosition += 15;
     
     const medicationsData = consultation.medications.map(med => [
       med.name,
@@ -197,74 +246,103 @@ export const generateConsultationReportPDF = (consultationData) => {
       head: [['Medication', 'Dosage', 'Frequency', 'Duration', 'Instructions']],
       body: medicationsData,
       theme: 'grid',
-      headStyles: { fillColor: primaryColor, textColor: [255, 255, 255] },
-      styles: { fontSize: 9 },
+      headStyles: { 
+        fillColor: primaryColor, 
+        textColor: [255, 255, 255],
+        fontStyle: 'bold'
+      },
+      styles: { 
+        fontSize: 9,
+        cellPadding: 8
+      },
       columnStyles: {
         0: { fontStyle: 'bold' },
         4: { cellWidth: 40 }
+      },
+      alternateRowStyles: {
+        fillColor: lightGray
       }
     });
     yPosition = doc.lastAutoTable.finalY + 15;
   }
   
-  // Check if we need a new page for notes
+  // Check if we need a new page for follow-up
   if (yPosition > 200) {
     doc.addPage();
     yPosition = 20;
   }
   
-  // Consultation Notes
-  if (consultation.consultationNotes) {
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
-    doc.text('Consultation Notes', 15, yPosition);
-    yPosition += 10;
-    
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    const notesLines = doc.splitTextToSize(consultation.consultationNotes, 180);
-    doc.text(notesLines, 15, yPosition);
-    yPosition += notesLines.length * 5 + 15;
-  }
-  
-  // Follow-up Information
+  // Follow-up Information Section
   if (consultation.followUpRequired) {
+    doc.setTextColor(...primaryColor);
+    doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
-    doc.text('Follow-up Information', 15, yPosition);
-    yPosition += 10;
+    doc.text('Follow-up', 15, yPosition);
     
-    doc.setFont('helvetica', 'normal');
+    // Section underline
+    doc.setDrawColor(233, 236, 239);
+    doc.setLineWidth(2);
+    doc.line(15, yPosition + 2, 195, yPosition + 2);
+    yPosition += 15;
+    
+    // Follow-up box
+    doc.setFillColor(...lightGray);
+    doc.rect(15, yPosition, 180, 25, 'F');
+    doc.setDrawColor(...primaryColor);
+    doc.setLineWidth(4);
+    doc.line(15, yPosition, 15, yPosition + 25);
+    
+    doc.setTextColor(0, 0, 0);
     doc.setFontSize(10);
-    doc.text('Follow-up is required for this patient.', 15, yPosition);
+    doc.setFont('helvetica', 'normal');
     
+    let followUpText = 'Follow-up is required for this patient.';
     if (consultation.followUpDate) {
-      doc.text(`Follow-up Date: ${new Date(consultation.followUpDate).toLocaleDateString()}`, 15, yPosition + 5);
+      followUpText += `\nFollow-up Date: ${new Date(consultation.followUpDate).toLocaleDateString()}`;
+    }
+    if (consultation.followUpNotes) {
+      followUpText += `\nNotes: ${consultation.followUpNotes}`;
     }
     
-    if (consultation.followUpNotes) {
-      doc.text('Follow-up Notes:', 15, yPosition + 10);
-      const followUpLines = doc.splitTextToSize(consultation.followUpNotes, 180);
-      doc.text(followUpLines, 15, yPosition + 15);
-    }
-    yPosition += 25;
+    const followUpLines = doc.splitTextToSize(followUpText, 170);
+    doc.text(followUpLines, 20, yPosition + 8);
+    yPosition += 35;
   }
   
-  // Footer
+  // Footer with Doctor Signature
   const pageCount = doc.internal.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
     
-    // Footer line
-    doc.setDrawColor(200, 200, 200);
-    doc.line(15, 285, 195, 285);
-    
-    // Footer text
-    doc.setFontSize(8);
-    doc.setTextColor(100, 100, 100);
-    doc.text('Smart Healthcare Management System - Consultation Report', 15, 290);
-    doc.text(`Page ${i} of ${pageCount}`, 195, 290, { align: 'right' });
-    doc.text(`Generated on: ${new Date().toLocaleString()}`, 105, 290, { align: 'center' });
+    // Add doctor signature on the last page
+    if (i === pageCount) {
+      // Move to bottom of page for signature
+      const signatureY = 250;
+      
+      // Doctor signature section
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(0, 0, 0);
+      
+      // Signature line
+      doc.setDrawColor(0, 0, 0);
+      doc.setLineWidth(1);
+      doc.line(105, signatureY, 195, signatureY);
+      
+      // Doctor name and title
+      doc.text(`Dr. ${doctor.name}`, 105, signatureY + 8);
+      doc.text(doctor.speciality, 105, signatureY + 15);
+      
+      // Footer line
+      doc.setDrawColor(233, 236, 239);
+      doc.setLineWidth(2);
+      doc.line(15, 280, 195, 280);
+      
+      // Footer text
+      doc.setFontSize(8);
+      doc.setTextColor(153, 153, 153);
+      doc.text(`Prescription ID: ${consultation._id}`, 195, 285, { align: 'right' });
+    }
   }
   
   return doc;
@@ -281,7 +359,7 @@ const formatAppointmentDate = (slotDate) => {
 export const generatePDFFilename = (patientName, appointmentDate) => {
   const date = new Date().toISOString().split('T')[0];
   const cleanPatientName = patientName.replace(/[^a-zA-Z0-9]/g, '_');
-  return `Consultation_Report_${cleanPatientName}_${date}.pdf`;
+  return `Prescription_${cleanPatientName}_${date}.pdf`;
 };
 
 export default {

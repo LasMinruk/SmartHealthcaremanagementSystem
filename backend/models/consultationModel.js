@@ -14,7 +14,7 @@ const consultationSchema = new mongoose.Schema({
   patientId: { 
     type: String, 
     required: true,
-    ref: 'user'
+    ref: 'patient'
   },
   consultationNotes: {
     type: String,
