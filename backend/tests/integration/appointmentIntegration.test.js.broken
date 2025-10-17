@@ -1,0 +1,443 @@
+import request from 'supertest';
+import express from 'express';
+import mongoose from 'mongoose';
+import appointmentModel from '../../models/appointmentModel.js';
+import doctorModel from '../../models/doctorModel.js';
+import patientModel from '../../models/patientModel.js';
+import userRouter from '../../routes/userRoute.js';
+import doctorRouter from '../../routes/doctorRoute.js';
+import adminRouter from '../../routes/adminRoute.js';
+import jwt from 'jsonwebtoken';
+
+// Mock email service
+import { jest } from '@jest/globals';
+
+// Create mock functions
+const mockSendAppointmentConfirmationEmail = jest.fn().mockResolvedValue({ success: true });
+const mockSendAppointmentCancellationEmail = jest.fn().mockResolvedValue({ success: true });
+
+jest.mock('../../services/emailService.js', () => ({
+  sendAppointmentConfirmationEmail: mockSendAppointmentConfirmationEmail,
+  sendAppointmentCancellationEmail: mockSendAppointmentCancellationEmail
+}));
+
+const app = express();
+app.use(express.json());
+app.use('/api/user', userRouter);
+app.use('/api/doctor', doctorRouter);
+app.use('/api/admin', adminRouter);
+
+describe('Appointment Management Integration Tests', () => {
+  let testDoctor;
+  let testPatient;
+  let userToken;
+  let doctorToken;
+  let adminToken;
+
+  beforeEach(async () => {
+    // Clean up database
+    await appointmentModel.deleteMany({});
+    await doctorModel.deleteMany({});
+    await patientModel.deleteMany({});
+
+    // Create test doctor
+    testDoctor = new doctorModel({
+      name: 'Dr. Integration Test',
+      email: 'doctor@integration.com',
+      password: 'hashedpassword',
+      speciality: 'Cardiology',
+      fees: 500,
+      type: 'Private',
+      available: true,
+      slots_booked: {}
+    });
+    await testDoctor.save();
+
+    // Create test patient
+    testPatient = new patientModel({
+      name: 'Integration Test Patient',
+      email: 'patient@integration.com',
+      password: 'hashedpassword',
+      phone: '1234567890'
+    });
+    await testPatient.save();
+
+    // Generate tokens
+    userToken = jwt.sign({ id: testPatient._id }, process.env.JWT_SECRET || 'test-secret');
+    doctorToken = jwt.sign({ id: testDoctor._id }, process.env.JWT_SECRET || 'test-secret');
+    adminToken = jwt.sign({ id: 'admin-id' }, process.env.JWT_SECRET || 'test-secret');
+  });
+
+  describe('Complete Appointment Lifecycle', () => {
+    it('should handle complete appointment lifecycle from booking to completion', async () => {
+      // Step 1: Book appointment
+      const appointmentData = {
+        docId: testDoctor._id.toString(),
+        slotDate: '15_12_2024',
+        slotTime: '10:00'
+      };
+
+      const bookResponse = await request(app)
+        .post('/api/user/book-appointment')
+        .set('token', userToken)
+        .send(appointmentData);
+
+      expect(bookResponse.status).toBe(200);
+      expect(bookResponse.body.success).toBe(true);
+
+      // Verify appointment was created
+      const appointment = await appointmentModel.findOne({
+        userId: testPatient._id.toString(),
+        docId: testDoctor._id.toString()
+      });
+      expect(appointment).toBeTruthy();
+      expect(appointment.cancelled).toBe(false);
+      expect(appointment.isCompleted).toBe(false);
+
+      // Step 2: Verify doctor can see the appointment
+      const doctorAppointmentsResponse = await request(app)
+        .get('/api/doctor/appointments')
+        .set('token', doctorToken);
+
+      expect(doctorAppointmentsResponse.status).toBe(200);
+      expect(doctorAppointmentsResponse.body.success).toBe(true);
+      expect(doctorAppointmentsResponse.body.appointments).toHaveLength(1);
+
+      // Step 3: Verify admin can see the appointment
+      const adminAppointmentsResponse = await request(app)
+        .get('/api/admin/appointments')
+        .set('token', adminToken);
+
+      expect(adminAppointmentsResponse.status).toBe(200);
+      expect(adminAppointmentsResponse.body.success).toBe(true);
+      expect(adminAppointmentsResponse.body.appointments).toHaveLength(1);
+
+      // Step 4: Doctor completes the appointment
+      const completeResponse = await request(app)
+        .post('/api/doctor/complete-appointment')
+        .set('token', doctorToken)
+        .send({ appointmentId: appointment._id.toString() });
+
+      expect(completeResponse.status).toBe(200);
+      expect(completeResponse.body.success).toBe(true);
+
+      // Verify appointment was completed
+      const completedAppointment = await appointmentModel.findById(appointment._id);
+      expect(completedAppointment.isCompleted).toBe(true);
+
+      // Step 5: Verify user can still see their completed appointment
+      const userAppointmentsResponse = await request(app)
+        .get('/api/user/appointments')
+        .set('token', userToken);
+
+      expect(userAppointmentsResponse.status).toBe(200);
+      expect(userAppointmentsResponse.body.success).toBe(true);
+      expect(userAppointmentsResponse.body.appointments).toHaveLength(1);
+      expect(userAppointmentsResponse.body.appointments[0].isCompleted).toBe(true);
+    });
+
+    it('should handle appointment cancellation workflow', async () => {
+      // Step 1: Book appointment
+      const appointmentData = {
+        docId: testDoctor._id.toString(),
+        slotDate: '15_12_2024',
+        slotTime: '10:00'
+      };
+
+      const bookResponse = await request(app)
+        .post('/api/user/book-appointment')
+        .set('token', userToken)
+        .send(appointmentData);
+
+      expect(bookResponse.status).toBe(200);
+      expect(bookResponse.body.success).toBe(true);
+
+      // Get the created appointment
+      const appointment = await appointmentModel.findOne({
+        userId: testPatient._id.toString(),
+        docId: testDoctor._id.toString()
+      });
+
+      // Step 2: User cancels the appointment
+      const cancelResponse = await request(app)
+        .post('/api/user/cancel-appointment')
+        .set('token', userToken)
+        .send({ appointmentId: appointment._id.toString() });
+
+      expect(cancelResponse.status).toBe(200);
+      expect(cancelResponse.body.success).toBe(true);
+
+      // Verify appointment was cancelled
+      const cancelledAppointment = await appointmentModel.findById(appointment._id);
+      expect(cancelledAppointment.cancelled).toBe(true);
+
+      // Step 3: Verify slot was freed (doctor can book the same slot again)
+      const anotherPatient = new patientModel({
+        name: 'Another Patient',
+        email: 'another@test.com',
+        password: 'hashedpassword',
+        phone: '1234567891'
+      });
+      await anotherPatient.save();
+
+      const anotherUserToken = jwt.sign({ id: anotherPatient._id }, process.env.JWT_SECRET || 'test-secret');
+
+      const bookAgainResponse = await request(app)
+        .post('/api/user/book-appointment')
+        .set('token', anotherUserToken)
+        .send(appointmentData);
+
+      expect(bookAgainResponse.status).toBe(200);
+      expect(bookAgainResponse.body.success).toBe(true);
+    });
+  });
+
+  describe('Government vs Private Doctor Scenarios', () => {
+    it('should handle government doctor appointment (zero fees, auto-complete payment)', async () => {
+      // Create government doctor
+      const governmentDoctor = new doctorModel({
+        name: 'Dr. Government',
+        email: 'gov@test.com',
+        password: 'hashedpassword',
+        speciality: 'General Medicine',
+        type: 'Government',
+        available: true,
+        slots_booked: {}
+      });
+      await governmentDoctor.save();
+
+      const appointmentData = {
+        docId: governmentDoctor._id.toString(),
+        slotDate: '15_12_2024',
+        slotTime: '10:00'
+      };
+
+      const bookResponse = await request(app)
+        .post('/api/user/book-appointment')
+        .set('token', userToken)
+        .send(appointmentData);
+
+      expect(bookResponse.status).toBe(200);
+      expect(bookResponse.body.success).toBe(true);
+
+      // Verify appointment has zero amount and complete payment
+      const appointment = await appointmentModel.findOne({
+        userId: testPatient._id.toString(),
+        docId: governmentDoctor._id.toString()
+      });
+
+      expect(appointment.amount).toBe(0);
+      expect(appointment.payment).toBe('complete');
+    });
+
+    it('should handle private doctor appointment (with fees, pending payment)', async () => {
+      const appointmentData = {
+        docId: testDoctor._id.toString(),
+        slotDate: '15_12_2024',
+        slotTime: '10:00'
+      };
+
+      const bookResponse = await request(app)
+        .post('/api/user/book-appointment')
+        .set('token', userToken)
+        .send(appointmentData);
+
+      expect(bookResponse.status).toBe(200);
+      expect(bookResponse.body.success).toBe(true);
+
+      // Verify appointment has fees and pending payment
+      const appointment = await appointmentModel.findOne({
+        userId: testPatient._id.toString(),
+        docId: testDoctor._id.toString()
+      });
+
+      expect(appointment.amount).toBe(testDoctor.fees);
+      expect(appointment.payment).toBe('rejected'); // Default value
+    });
+  });
+
+  describe('Concurrent Booking Scenarios', () => {
+    it('should handle multiple users trying to book the same slot', async () => {
+      // Create multiple patients
+      const patients = [];
+      const tokens = [];
+
+      for (let i = 0; i < 3; i++) {
+        const patient = new patientModel({
+          name: `Patient ${i}`,
+          email: `patient${i}@test.com`,
+          password: 'hashedpassword',
+          phone: `123456789${i}`
+        });
+        await patient.save();
+        patients.push(patient);
+
+        const token = jwt.sign({ id: patient._id }, process.env.JWT_SECRET || 'test-secret');
+        tokens.push(token);
+      }
+
+      const appointmentData = {
+        docId: testDoctor._id.toString(),
+        slotDate: '15_12_2024',
+        slotTime: '10:00'
+      };
+
+      // Try to book the same slot with multiple users simultaneously
+      const bookingPromises = tokens.map(token =>
+        request(app)
+          .post('/api/user/book-appointment')
+          .set('token', token)
+          .send(appointmentData)
+      );
+
+      const responses = await Promise.all(bookingPromises);
+
+      // Only one should succeed
+      const successfulBookings = responses.filter(response => response.body.success);
+      const failedBookings = responses.filter(response => !response.body.success);
+
+      expect(successfulBookings).toHaveLength(1);
+      expect(failedBookings).toHaveLength(2);
+
+      // Verify only one appointment was created
+      const appointments = await appointmentModel.find({
+        docId: testDoctor._id.toString(),
+        slotDate: '15_12_2024',
+        slotTime: '10:00'
+      });
+
+      expect(appointments).toHaveLength(1);
+    });
+  });
+
+  describe('Doctor Availability Management', () => {
+    it('should prevent booking when doctor is unavailable', async () => {
+      // Make doctor unavailable
+      testDoctor.available = false;
+      await testDoctor.save();
+
+      const appointmentData = {
+        docId: testDoctor._id.toString(),
+        slotDate: '15_12_2024',
+        slotTime: '10:00'
+      };
+
+      const bookResponse = await request(app)
+        .post('/api/user/book-appointment')
+        .set('token', userToken)
+        .send(appointmentData);
+
+      expect(bookResponse.status).toBe(200);
+      expect(bookResponse.body.success).toBe(false);
+      expect(bookResponse.body.message).toBe('Doctor Not Available');
+
+      // Verify no appointment was created
+      const appointments = await appointmentModel.find({
+        docId: testDoctor._id.toString()
+      });
+
+      expect(appointments).toHaveLength(0);
+    });
+
+    it('should allow booking when doctor becomes available again', async () => {
+      // Make doctor unavailable first
+      testDoctor.available = false;
+      await testDoctor.save();
+
+      const appointmentData = {
+        docId: testDoctor._id.toString(),
+        slotDate: '15_12_2024',
+        slotTime: '10:00'
+      };
+
+      // Try to book - should fail
+      const bookResponse1 = await request(app)
+        .post('/api/user/book-appointment')
+        .set('token', userToken)
+        .send(appointmentData);
+
+      expect(bookResponse1.body.success).toBe(false);
+
+      // Make doctor available again
+      testDoctor.available = true;
+      await testDoctor.save();
+
+      // Try to book again - should succeed
+      const bookResponse2 = await request(app)
+        .post('/api/user/book-appointment')
+        .set('token', userToken)
+        .send(appointmentData);
+
+      expect(bookResponse2.status).toBe(200);
+      expect(bookResponse2.body.success).toBe(true);
+    });
+  });
+
+  describe('Data Consistency Tests', () => {
+    it('should maintain data consistency across all operations', async () => {
+      // Book appointment
+      const appointmentData = {
+        docId: testDoctor._id.toString(),
+        slotDate: '15_12_2024',
+        slotTime: '10:00'
+      };
+
+      const bookResponse = await request(app)
+        .post('/api/user/book-appointment')
+        .set('token', userToken)
+        .send(appointmentData);
+
+      expect(bookResponse.body.success).toBe(true);
+
+      // Verify data consistency across all views
+      const [userView, doctorView, adminView] = await Promise.all([
+        request(app).get('/api/user/appointments').set('token', userToken),
+        request(app).get('/api/doctor/appointments').set('token', doctorToken),
+        request(app).get('/api/admin/appointments').set('token', adminToken)
+      ]);
+
+      expect(userView.body.appointments).toHaveLength(1);
+      expect(doctorView.body.appointments).toHaveLength(1);
+      expect(adminView.body.appointments).toHaveLength(1);
+
+      // Verify all views show the same appointment data
+      const userAppointment = userView.body.appointments[0];
+      const doctorAppointment = doctorView.body.appointments[0];
+      const adminAppointment = adminView.body.appointments[0];
+
+      expect(userAppointment._id).toBe(doctorAppointment._id);
+      expect(doctorAppointment._id).toBe(adminAppointment._id);
+      expect(userAppointment.slotDate).toBe(doctorAppointment.slotDate);
+      expect(doctorAppointment.slotDate).toBe(adminAppointment.slotDate);
+    });
+  });
+
+  describe('Error Recovery Tests', () => {
+    it('should handle partial failures gracefully', async () => {
+      // This test would require more sophisticated mocking
+      // For now, we'll test that the system handles invalid data gracefully
+      
+      const invalidAppointmentData = {
+        docId: 'invalid-doctor-id',
+        slotDate: '15_12_2024',
+        slotTime: '10:00'
+      };
+
+      const bookResponse = await request(app)
+        .post('/api/user/book-appointment')
+        .set('token', userToken)
+        .send(invalidAppointmentData);
+
+      expect(bookResponse.status).toBe(200);
+      expect(bookResponse.body.success).toBe(false);
+      expect(bookResponse.body.message).toBeDefined();
+
+      // Verify no appointment was created
+      const appointments = await appointmentModel.find({
+        userId: testPatient._id.toString()
+      });
+
+      expect(appointments).toHaveLength(0);
+    });
+  });
+});
